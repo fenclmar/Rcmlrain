@@ -14,6 +14,22 @@ library(raster)
 load('spatial_recon.RData')
 source('fun_CML.r')
 
+# define plotting function for CMLs
+plot_cmls <- function (x.lim, y.lim, cml_info) {
+    # function to plot CMLsin Cartesian coord. system
+    
+    par(mar = c(4, 4, 0.1, 0.1))
+    plot(0, 0, xlim = x.lim, ylim = y.lim, xlab = 'X [m]', ylab = 'Y [m]')
+    for (i in 1:nrow(cml_info)){
+        lines(data.frame(c(cml_info[i, 3], cml_info[i, 5]),
+                         c(cml_info[i, 4], cml_info[i, 6])),
+              col = '#00000099', lwd = 1)
+    }
+    abline(h = seq(-1070000, by = 5000, length = 15), col = '#00000044', lty = 3)
+    abline(v = seq(-760000, by = 5000, length = 15), col = '#00000044', lty = 3)
+}
+
+
 # define an area which will be evaluated
 x.lim <- c(-743000, -723000)    
 y.lim <- c(-1065000, -1054000) 
@@ -36,19 +52,9 @@ k_dist <- K.distance.mtx(K)
 
 # plot
 # define plotting area
-options(repr.plot.height = 3, repr.plot.width = 10)
-
-par(mar = c(4, 4, 0.1, 0.1))
-plot(0, 0, xlim = x.lim, ylim = y.lim, xlab = 'X [m]', ylab = 'Y [m]')
-for (i in 1:nrow(cml_info)){
-    lines(data.frame(c(cml_info[i, 3], cml_info[i, 5]),
-                     c(cml_info[i, 4], cml_info[i, 6])),
-          col = '#00000099', lwd = 1)
-}
+#options(repr.plot.height = 3, repr.plot.width = 10)
+plot_cmls (x.lim, y.lim, cml_info)
 points(K[, 1:2], col = 2, pch = 20, cex = 1.9)
-abline(h = seq(-1070000, by = 5000, length = 15), col = '#00000044', lty = 3)
-abline(v = seq(-760000, by = 5000, length = 15), col = '#00000044', lty = 3)
-
 
 
 #' ### Iterate to distribute rainfall along the CML segments  
@@ -65,6 +71,26 @@ q_var <- get_cml_accuracy(Fr = cml_info$Freq, Pol = cml_info$Pol,
 K2 <- distribute.cmlR.1D(r_cml, K, k_dist, q_var, z = 5, n.iter = 10)
 
 head(K2)
+
+# plot estimated distribution of rainfall along the links
+
+Rmax <- max(r_ref[], K2$rij, na.rm=T)
+Rmax <- ceiling(Rmax)
+expo <- 3.3
+bks <- ((11:75)*Rmax/75)^expo/Rmax^(expo-1)
+palette <- get_palette()
+col_ini <- palette[ceiling(approx(bks, seq(0, Rmax, length = 65), K2$R)$y)]
+col_distr <- palette[ceiling(approx(bks, seq(0, Rmax, length = 65), K2$rij)$y)]
+
+#options(repr.plot.height = 3, repr.plot.width = 10)
+layout (matrix(1 : 2, 1, 2))
+plot_cmls (x.lim, y.lim, cml_info)
+mtext('uniform rain', 1, -3, cex = 2)
+points(K[, 1:2], col = col_ini, pch = 20, cex = 3)
+plot_cmls (x.lim, y.lim, cml_info)
+points(K[, 1:2], col = col_distr, pch = 20, cex = 3)
+mtext('distributed rain', 1, -3, cex = 2)
+
 
 #' ### Extrapolate rainfall to regular grid  
 #' - IDW extrapolation
@@ -100,7 +126,7 @@ bks <- ((11:75)*Rmax/75)^expo/Rmax^(expo-1)
 palette <- get_palette()
 
 # plotting raster fields 
-options(repr.plot.height = 4, repr.plot.width = 10)
+#options(repr.plot.height = 4, repr.plot.width = 10)
 par(mfcol=c(1,2))
 plot(r_ref, col = palette, breaks = bks, useRaster = F, zlim = c(0, 15),
      xlim = x.lim, ylim = y.lim, legend = F)
@@ -126,7 +152,7 @@ for (i in 1:nrow(cml_info)){
 r_agr <- aggregate(r_ref, fact = 10, fun = mean) 
 
 # plot results
-options(repr.plot.height = 6, repr.plot.width = 10)
+#options(repr.plot.height = 6, repr.plot.width = 10)
 par(mfcol = c(2, 2), mar = c(2.2, 2, 4, .5))
 plot(r_agr, col = palette, breaks = bks, useRaster = F, zlim = c(0, 55),
      xlim = x.lim, ylim = y.lim, legend = F, main = 'aggregated reference rainfall')
