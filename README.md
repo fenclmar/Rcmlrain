@@ -1,4 +1,4 @@
-# R_cml_rain
+# Rcmlrain
 - R function for processing commercial microwave link data
 - example of spatial reconstruction with virtual data
 
