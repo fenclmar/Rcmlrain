@@ -6,6 +6,7 @@
 # Description: Provides set of tools for processing cml data. Designed for 
 # ICUD CML workshop in Prague COngress Centre (10th September 2017)
 # License: MIT
+# Last upadate: 2019/06/18 (new kRmodel and fitting functions)
 
 
 zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
@@ -132,7 +133,7 @@ identify_peaks <- function(x, tsh, report=T){
 #####################
 
 
-basel_fenicia <- function(tpl, m){
+baseline_fenicia <- function(tpl, m){
     
     # Baseline model for CML rainfall estimation
     # for details see eq. 3 and 17 in Fenicia et al 2012, Microwave links
@@ -181,7 +182,7 @@ basel_fenicia <- function(tpl, m){
 
 #####################
 
-fit_baseline <- function(tabT,tabA,tabS,w=6*3600){
+baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear"){
     
     ## Baseline estimation algorithm
     ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -243,10 +244,170 @@ fit_baseline <- function(tabT,tabA,tabS,w=6*3600){
         x <- tabT[id.dry.antenna]/3600
         y <- tabA[id.dry.antenna]
         xout <- tabT[id.wet.antenna]/3600
-        tabB[id.wet.antenna] <- approx(x=x,y=y,xout=xout,method="linear")$y
+        tabB[id.wet.antenna] <- approx(x=x,y=y,xout=xout, method = method)$y
     }
     return(tabB)    
 }
+
+
+#####################
+
+
+baseline_Qsmoothing <- function (tpl, q = .5, win = 7 * 24) {
+    # baseline calculated through smooting of hourly data using first
+    # quantile and then mean. The window is moving is moving by hourly steps.
+    # The window length should be set up considering typical duratio of rain
+    # events to ensure sufficienlty high ratio of dry weather records is within
+    # window range (in each step). 
+    #
+    #'@param tpl - zoo series of tpl, one channel
+    #'@param q - quantile (0-1) of tpl hourly subset (within moving window) used for
+    #            basline.
+    #'@param win - smoothing window size in hours (default is one week)
+    
+  
+  tpl_h <- zoo_aggreg_by(tpl, 60, align = 'right', fun = 'mean', na.rm = T)
+  b_h <- rollapply(tpl_h, win, quantile, probs = q, na.rm = T,
+                   align = 'center', by = 1, partial = T)
+  b_h2 <- rollapply(b_h, win, mean, na.rm = T, align = 'center',
+                    by = 1, partial = T)
+  b1min <- tpl
+  b1min[] <- NA
+  b1min[index(b_h2)] <- b_h2
+  b1min <- na.approx(b1min, method = 'linear', rule = 2, f = .5)
+  
+  return (b1min)
+  
+}
+
+######################
+
+
+wet_antenna_attenuation <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
+    
+    ## Dynamic wet-antenna attenuation model
+    ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
+    ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
+    ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
+    
+    ## Inputs:
+    ## tabT = vector with sorted measurement times (in seconds)
+    ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
+    ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
+    ## tauW = average antenna wetting time (in minutes)
+    ## Wmax = maximum wet-antenna attenuation (in dB)
+    ## w0   = initial wet-antenna attenuation (in dB)
+    
+    ## Output:
+    ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
+    print(paste("execution started at", Sys.time()))
+    ## Local variables:
+    NtabT <- length(tabT)
+    NtabA <- length(tabA)
+    NtabS <- length(tabS)
+    notNA <- which(!is.na(tabA))
+    NNA   <- length(notNA)
+    
+    ## Basic checks on input parameters:
+    if(NtabT==0){stop("tabT is empty")}
+    if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
+    if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
+    if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
+    if(is.na(tauW)){stop("NA value not allowed for tauW")}
+    if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
+    if(tauW<=0){stop("tauW must be strictly positive")}
+    if(Wmax<0){stop("negative values are not allowed for Wmax")}
+    if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
+    
+    ## Compute wet-antenna attenuation
+    WAA <- rep(NA,NtabT)
+    if(NNA>0){WAA[notNA[1]] <- w0}
+    if(NNA==1){return(WAA)}
+    for(itr in 2:NNA){
+        j <- notNA[itr]
+        if(tabS[j]==0){
+            WAA[j] <- max(min(tabA[j],Wmax),0)
+            next
+        }
+        i <- notNA[itr-1]
+        dt <- (tabT[j]-tabT[i])/60
+        WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
+        if(WAA[j]>Wmax){WAA[j] <- Wmax}
+        if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
+        if(WAA[j]<0){WAA[j] <- 0}
+    }
+    print(paste("execution endeded at", Sys.time()))
+    return(WAA)
+}
+
+
+#####################
+
+
+wet_antenna_attenuation_fast <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
+        
+        ## Dynamic wet-antenna attenuation model
+        ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
+        ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
+        ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
+        
+        ## Inputs:
+        ## tabT = vector with sorted measurement times (in seconds)
+        ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
+        ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
+        ## tauW = average antenna wetting time (in minutes)
+        ## Wmax = maximum wet-antenna attenuation (in dB)
+        ## w0   = initial wet-antenna attenuation (in dB)
+        
+        ## Output:
+        ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
+        print(paste("execution started at", Sys.time()))
+        ## Local variables:
+        NtabT <- length(tabT)
+        NtabA <- length(tabA)
+        NtabS <- length(tabS)
+        notNA <- which(!is.na(tabA))
+        NNA   <- length(notNA)
+        
+        ## Basic checks on input parameters:
+        if(NtabT==0){stop("tabT is empty")}
+        if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
+        if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
+        if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
+        if(is.na(tauW)){stop("NA value not allowed for tauW")}
+        if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
+        if(tauW<=0){stop("tauW must be strictly positive")}
+        if(Wmax<0){stop("negative values are not allowed for Wmax")}
+        if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
+        
+        ## Compute wet-antenna attenuation
+        WAA <- rep(NA,NtabT)
+        if(NNA>0){WAA[notNA[1]] <- w0}
+        if(NNA==1){return(WAA)}
+        
+        tabS.NNA <- tabS[notNA]
+        tabT.NNA <- tabT[notNA]
+        dt <- tabT.NNA[-1] - tabT.NNA[-length(tabT.NNA)]
+        
+        for(itr in 2:NNA){
+            j <- notNA[itr]
+            if(tabS[j]==0){
+                WAA[j] <- max(min(tabA[j],Wmax),0)
+                next
+            }
+            i <- notNA[itr-1]
+            dt <- (tabT[j]-tabT[i])/60
+            WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
+            if(WAA[j]>Wmax){WAA[j] <- Wmax}
+            if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
+            if(WAA[j]<0){WAA[j] <- 0}
+        }
+        print(paste("execution endeded at", Sys.time()))
+        return(WAA)
+    }
+
+
+
 
 
 #####################
@@ -311,7 +472,7 @@ get_ITU_pars <- function(Freq, Pol, conv = T){
     if(conv == F){
         mwl.pars[ ,2] <- 1/mwl.pars[ ,2]
         mwl.pars[ ,1] <- mwl.pars[ ,1]^(-mwl.pars[ ,2])
-        mwl.pars <- round(mwl.pars, 2)
+        mwl.pars <- round(mwl.pars, 3)
         colnames(mwl.pars) <- c("a", "b") 
     }
     
@@ -411,9 +572,90 @@ plot_3_scatters = function(z,...){
     plot_scatter(z[ ,2], z[ ,3], xlab = colnames(z)[2], ylab = colnames(z)[3],...)
 }
 
+
+##################
+## Standard k-R model 
+#################
+
+fit_kRmodel <- function(k, R, alpha.lim, beta.lim, logtransform = F)
+    # function to fit power law k-R model: R = alpha*k^beta;
+    # Arguments:
+    # k - vector with specific attenuation
+    # R - vector with reference rain rates
+    # alpha.lim, beta.lim - limits of slope (alpha) and power (beta) parameters
+    # and their initial values: c(min, max, ini))
+    # logtransform - logaritmic transformation to reduce heteroscedasticity of
+    # data
+{    
+    
+    #p.ini <- c(mean(p1.lim), mean(p2.lim)) #
+    k <- as.numeric(k)
+    R <- as.numeric(R)
+    p.ini <- c(alpha.lim[3], beta.lim[3])
+    p <- optim(par = p.ini, fn = minfun_kRmodel, gr = NULL,
+               lower = c(alpha.lim[1], beta.lim[1]),        
+               upper = c(alpha.lim[2], beta.lim[2]),       
+               method = "L-BFGS-B",
+               k = k,
+               r = R,
+               logtransform)$par
+    
+    return(p)
+}
+
+
+#################
+
+minfun_kRmodel <- function(par, k, r, logtransform = F)
+    #function, which is minimized in fitting
+    # here: LS criterion
+    # alpha <- pars[1]
+    # beta <- pars[2]
+{    
+    r[which(r < 0)] <- 0
+    r.mod <- kRmodel(k, par)
+    cost.val <- costfun_kRmodel(r.mod, r, logtransform)
+    return(cost.val)
+    
+}
+
+
 ##################
 
 
+kRmodel <- function(k, p){
+    ## function to get rain rate from attenuation
+    ## Intputs: k - speicific attenutation [dB/km]
+    ##          p - model pamaeters, c("alpha", "beta")
+    ## Output: r.mod - modeled rainfall intensity [mm/h]
+    
+    k[k <- 0] <- 0
+    r.mod <- p[1] * k ^ p[2]
+    return(r.mod)
+}
+
+###################
+
+costfun_kRmodel <- function(r.mod, r, logtransform = F){
+    
+    if (logtransform == F) {
+        cost <- sum((r.mod - r)^2, na.rm=T)
+    } else if (logtransform == T) {
+        cost <- sum((log(r.mod + 1) - log(r + 1))^2, na.rm = T)
+    } else {
+        stop ('logtransform is not logical!')
+    }
+    
+    return (cost)
+}
+
+
+        
+        
+        
+##################
+## CML adjusting:
+##################
 
 dyn_cal_power <- function(A, R, L, beta, w, r.thr, al.lim, aw.lim, b.lim, wei)
     ## function to dynamicaly calibrate simpified k-R relation (R=alpha*k^beta-aw)
@@ -555,6 +797,7 @@ fit_kR_power <- function(k, ref, p1.lim, p2.lim, p3.lim, wei)
     return(p)
 }
 
+
 ##################
 
 minfun_power <- function(pars, x, r.ref, w, beta0)
@@ -598,6 +841,11 @@ cost_fun_power <- function(mod, ref, p, w, beta0){
 
 
 ##################
+
+
+##################
+
+
 
 
 disaggreg_parameters <- function(p.mtx, p.idx, pout.idx, method="constant")
