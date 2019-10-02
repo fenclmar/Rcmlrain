@@ -17,7 +17,7 @@ zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
     ## x_zoo - zoo time series
     ## step - time step to which agregate the series (in minutes)
     ## step - time step to which agregate the series (in minutes)
-    ##
+    ## d
     ## outputs:
     ## ag_zoo - aggregated time series
     
