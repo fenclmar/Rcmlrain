@@ -17,7 +17,7 @@ zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
     ## x_zoo - zoo time series
     ## step - time step to which agregate the series (in minutes)
     ## step - time step to which agregate the series (in minutes)
-    ## d
+    ## 
     ## outputs:
     ## ag_zoo - aggregated time series
     
@@ -38,7 +38,7 @@ zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
     
     tim_agr <-  as.POSIXct(t_num, origin="1970-01-01 00:00:00 UTC") #time indexes for aggregtion
     
-    ag_zoo <- aggregate(x_zoo, list(tim_agr), fun)
+    ag_zoo <- aggregate(x_zoo, list(tim_agr), fun, ...)
     
     if(is.regular(ag_zoo, strict = T) == F) {
         if(insert.missing == T){
@@ -253,9 +253,9 @@ baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear")
 #####################
 
 
-baseline_Qsmoothing <- function (tpl, q = .5, win = 7 * 24) {
+baseline_Qsmoothing <- function (tpl, fun = 'mean', q = .5, win = 7 * 24, ...) {
     # baseline calculated through smooting of hourly data using first
-    # quantile and then mean. The window is moving is moving by hourly steps.
+    # predefined function and then quantile. The window is moving is moving by hourly steps.
     # The window length should be set up considering typical duratio of rain
     # events to ensure sufficienlty high ratio of dry weather records is within
     # window range (in each step). 
@@ -266,7 +266,7 @@ baseline_Qsmoothing <- function (tpl, q = .5, win = 7 * 24) {
     #'@param win - smoothing window size in hours (default is one week)
     
   
-  tpl_h <- zoo_aggreg_by(tpl, 60, align = 'right', fun = 'mean', na.rm = T)
+  tpl_h <- zoo_aggreg_by(tpl, 60, align = 'right', fun = fun, na.rm = T, ...)
   b_h <- rollapply(tpl_h, win, quantile, probs = q, na.rm = T,
                    align = 'center', by = 1, partial = T)
   b_h2 <- rollapply(b_h, win, mean, na.rm = T, align = 'center',
