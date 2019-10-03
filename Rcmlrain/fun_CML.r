@@ -1354,8 +1354,69 @@ get_palette <- function() {
 #########################
 
 
+# ========================
+# Dry-wet classification
+# ========================
+
+drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
+                             na.rm = T, tsh = NULL) {
+  
+  #' Dry/wet weather classification based on standard deviation moving window
+  #' according to Schleiss et al. 2009. Window width is 
+  #' 
+  #'@param tpl time series with TPL (attenuation) data
+  #'@param q quantile defining threshold for sds correpsonding to dry and wet weather, i.e.
+  #'ratio of dry data points to all data points.
+  #'@param width size of moving sd window in data points.
+  #'Size of moving window should consider local rainfall climatology. Schleiss et al. (2019)
+  #'recommends size corresponding to 15 - 30 min for Paris.
+  #'@param align alignment of moving winodw ('left', 'center', 'right')
+  #'@param partial logicla or numeric. See zoo.rollapply.
+  #'@param na.rm logical. If TRUE then removes NAs when calculating sd within a window
+  #'Returns list with sd time series and time series of classifier (F = dry, T = wet)
+  
+  require(zoo)
+  
+  tpl <- as.zoo(tpl)
+  
+  sd_tpl <- rollapply(tpl, width = width, sd, by = 1, align = align,
+                      partial = partial, na.rm = na.rm)
+
+  if (!is.null(tsh)) {tsh <- quantile(tpl, q, na.rm = T)}
+  
+  wet <- sd_tpl > tsh
+  
+  out <- list('sd' = sd_tpl, 'wet' = wet)
+  return (out)
+  
+}
+
+
+
+
+moving_sd <- function (ts, width, align = 'left', partial = T, na.rm = T) {
+  
+  #' Calculate series of standard deviations by shifting forward window of 
+  #' defined size 
+  #' 
+  #'@param ts time series with TPL (attenuation) data
+  #'@param width size of moving sd window in data points (default is one week)
+  #' Outputs:
+  #' sd_ts - time series of standard deviations
+  
+  require(zoo)
+  
+  ts <- as.zoo(ts)
+  sd_ts <- rollapply(ts, width = width, sd, by = 1, align = align,
+                     partial = partial, na.rm = na.rm)
+
+  return (sd_ts)
+  
+}
+
+# ========================
 # WAA functions
-##=====================
+# ========================
 
 
 WAA_khar_1 <- function(att.meas, mod.par){
