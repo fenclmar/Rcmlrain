@@ -1382,7 +1382,7 @@ drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
   sd_tpl <- rollapply(tpl, width = width, sd, by = 1, align = align,
                       partial = partial, na.rm = na.rm)
 
-  if (!is.null(tsh)) {tsh <- quantile(sd_tpl, q, na.rm = T)}
+  if (is.null(tsh)) {tsh <- quantile(sd_tpl, q, na.rm = T)}
   
   wet <- sd_tpl > tsh
   
