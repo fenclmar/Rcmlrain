@@ -217,7 +217,7 @@ baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear")
     id.wet <- intersect(which(tabS==1),notNA)
     Ndry   <- length(id.dry)
     Nwet   <- length(id.wet)
-    print("OK 1")
+    #print("OK 1")
     ## Determine the time to the previous wet periods
     time2prev.wet <- rep(NA,NtabT)
     if(Ndry>0 && Nwet>0){
@@ -228,18 +228,18 @@ baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear")
             time2prev.wet[i] <- tabT[i] - tabT[id.wet[J[nJ]]]
         }
     }
-    print("OK 2")
+    #print("OK 2")
     
     ## Estimate baseline attenuation during periods with wet antennas
     ## The baseline is obtained by linearly interpolating the attenuation values during periods with dry antennas
     id.dry.antenna <- which(time2prev.wet>w)
-    print("OK 3")
+    #print("OK 3")
     if(length(id.dry.antenna)==0){stop("could not find any period with dry antenna")}
-    print("OK 4")
+    #print("OK 4")
     tabB[id.dry.antenna] <- tabA[id.dry.antenna]
-    print("OK 5")
+    #print("OK 5")
     id.wet.antenna <- setdiff(notNA,id.dry.antenna)
-    print("OK 6")
+    #print("OK 6")
     if(length(id.wet.antenna)>0){
         x <- tabT[id.dry.antenna]/3600
         y <- tabA[id.dry.antenna]
