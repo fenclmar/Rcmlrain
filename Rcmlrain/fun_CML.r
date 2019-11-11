@@ -629,7 +629,7 @@ kRmodel <- function(k, p){
     ##          p - model pamaeters, c("alpha", "beta")
     ## Output: r.mod - modeled rainfall intensity [mm/h]
     
-    k[k <- 0] <- 0
+    k[k < 0] <- 0
     r.mod <- p[1] * k ^ p[2]
     return(r.mod)
 }
