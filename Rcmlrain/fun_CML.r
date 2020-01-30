@@ -254,7 +254,7 @@ baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear")
 
 
 baseline_Qsmoothing <- function (tpl, fun = 'mean', q = .5, win = 7 * 24, ...) {
-    # baseline calculated through smooting of hourly data using first
+    # baseline calculated as moving quantile window through smooting of hourly data using first
     # predefined function and then quantile. The window is moving is moving by hourly steps.
     # The window length should be set up considering typical duratio of rain
     # events to ensure sufficienlty high ratio of dry weather records is within
