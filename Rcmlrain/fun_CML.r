@@ -426,7 +426,7 @@ plot2 <- function(..., h = seq(0, 50, 5), v = seq(0, 50, 5), g.col = '#00000044'
 ######################
 
 
-get_ITU_pars <- function(Freq, Pol, conv = T){
+get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
     ## function to assign R-k power law parameters to MWL of given frequency and polarization. 
     ## Parameters are based on Rec. ITU-R P.838-3.
     ##
@@ -435,6 +435,7 @@ get_ITU_pars <- function(Freq, Pol, conv = T){
     ##           conv - indicating if to convert original ITU parameters to 
     ##                  (alpha & beta) parameters for rainfall estimation or keep
     ##                  original ITU values (a & b)
+    ##          digits - integer indicating number of decimal places to round the parameters, value NULL does no rounding
     ##
     ## Outputs:  data frame with R-k power law parameters.
     
@@ -472,10 +473,11 @@ get_ITU_pars <- function(Freq, Pol, conv = T){
     if(conv == F){
         mwl.pars[ ,2] <- 1/mwl.pars[ ,2]
         mwl.pars[ ,1] <- mwl.pars[ ,1]^(-mwl.pars[ ,2])
-        mwl.pars <- round(mwl.pars, 3)
         colnames(mwl.pars) <- c("a", "b") 
     }
     
+    if (!is.null(digits)) {mwl.pars <- round(mwl.pars, digits)}
+      
     return(as.data.frame(mwl.pars))
 }
 
