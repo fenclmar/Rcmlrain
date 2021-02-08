@@ -6,7 +6,7 @@
 # Description: Provides set of tools for processing cml data. Designed for 
 # ICUD CML workshop in Prague COngress Centre (10th September 2017)
 # License: MIT
-# Last upadate: 2021/01/01 (not exactly when and what)
+# Last upadate: 2021/01/03 (not exactly when and what)
 
 
 zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
