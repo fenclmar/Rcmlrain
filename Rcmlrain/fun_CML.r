@@ -6,20 +6,58 @@
 # Description: Provides set of tools for processing cml data. Designed for 
 # ICUD CML workshop in Prague COngress Centre (10th September 2017)
 # License: MIT
-# Last upadate: 2021/01/03 (not exactly when and what)
+# Last upadate: 2022/02 (not exactly when and what)
+
+
+
+
+## -----------------------
+## Preprocessing raw data:
+## -----------------------
+
+## Set of functions for processing of raw data in a form of non-regular time series
+
+
+identify_peaks <- function(x, tsh, report=T){
+  ## Identifies suspicious sudden peaks in attenuation data
+  ##
+  ## Arguments:
+  ## x - vector or time series with total loss or attenuation values
+  ## tsh - threshold value in dB to classify data point as sudden peak
+  ## report - logical scalar. If True, number of identified peaks is printed
+  ## Returns: id.peak - indexes of data points being identified as sudden peaks
+  
+  x <- as.numeric(x)
+  dif <- x[-1]-x[-length(x)]
+  
+  ext1 <- c(F, abs(dif[-1] > 0) + (dif[-length(dif)] < 0)==2, F)
+  ext2 <- c(F, abs(dif[-1] < 0) + (dif[-length(dif)] > 0)==2, F)
+  ext <- (ext1+ext2) > 0
+  dif2 <- apply(data.frame(abs(c(dif,0)), abs(c(0,dif))), 1, min)*ext
+  
+  id.peak <- which(abs(dif2) > tsh) 
+  
+  if(report==T){
+    print(paste("Number of sudden peaks:", length(id.peak)))    
+  }
+  
+  
+  return(id.peak)
+}
 
 
 zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
                           insert.missing = T, ...){
-    ## function to aggregate time series to given time series
+
+    ## Aggregates a regular or non-regular time series to the regular time series of defined time step
     ##
-    ## inputs:
+    ## parameters:
     ## x_zoo - zoo time series
     ## step - time step to which agregate the series (in minutes)
     ## step - time step to which agregate the series (in minutes)
     ## 
-    ## outputs:
-    ## ag_zoo - aggregated time series
+    ## returns:
+    ## ag_zoo - aggregated regular time series of defined time step.
     
     require(zoo)
     tim <- index(x_zoo)
@@ -55,100 +93,69 @@ zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
 }
 
 
-#############
 
-insert_missing_records <- function(zoo_ser, step){
-    ## function to insert time steps to make time series regular
-    ##
-    ## inputs
-    ## dat  - data.frame of n columns with time stamp in the first column
-    ## step - time step which should have the resulting time series (in minutes)
-    ##
-    ## outputs:
-    ## dat2 - data.frame with consistent time series
-    
-    require(zoo)
-    
-    dat <- data.frame('time' = index(zoo_ser), 'data'= coredata((zoo_ser)))
-    
-    dat2 <- reg_series(dat, step)
-    zoo2_ser <- zoo(dat2[ , -1], dat2[ , 1])
-    colnames(zoo2_ser) <- colnames(zoo_ser)
-    
-    return(zoo2_ser)
+
+## -----------------------
+## CML rainfall retrieval:
+## -----------------------
+
+## ---- dry-wet classification ---- ##
+
+drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
+                             na.rm = T, tsh = NULL) {
+  
+  #' Dry/wet weather classification based on standard deviation moving window
+  #' according to Schleiss et al. 2009. Window width is 
+  #' 
+  #'@param tpl time series with TPL (attenuation) data
+  #'@param q quantile defining threshold for sds correpsonding to dry and wet weather, i.e.
+  #'ratio of dry data points to all data points.
+  #'@param width size of moving sd window in data points.
+  #'Size of moving window should consider local rainfall climatology. Schleiss et al. (2019)
+  #'recommends size corresponding to 15 - 30 min for Paris.
+  #'@param align alignment of moving winodw ('left', 'center', 'right')
+  #'@param partial logicla or numeric. See zoo.rollapply.
+  #'@param na.rm logical. If TRUE then removes NAs when calculating sd within a window
+  #'Returns list with sd time series and time series of classifier (F = dry, T = wet)
+  
+  require(zoo)
+  
+  tpl <- as.zoo(tpl)
+  
+  sd_tpl <- rollapply(tpl, width = width, sd, by = 1, align = align,
+                      partial = partial, na.rm = na.rm)
+  
+  if (is.null(tsh)) {tsh <- quantile(sd_tpl, q, na.rm = T)}
+  
+  wet <- sd_tpl > tsh
+  
+  out <- list('sd' = sd_tpl, 'wet' = wet)
+  return (out)
+  
 }
 
 
-
-
-reg_series <- function(dat, step){
-    ## function to insert time steps to make time series regular
-    ##
-    ## inputs
-    ## dat  - data.frame of n columns with time stamp in the first column
-    ## step - time step which should have the resulting time series (in minutes)
-    ##
-    ## outputs:
-    ## dat2 - data.frame with consistent time series
-    tim0 <- dat[,1]
-    tim <- seq(tim0[1],tim0[length(tim0)], by=step*60)
-    id.add <- which(is.element(tim, tim0)==T)
-    dat2 <- as.data.frame(matrix(NA, ncol=ncol(dat), nrow=length(tim)))
-    dat2[ ,1] <- tim
-    dat2[id.add, -1] <- dat[ ,-1]
-    
-    # name colnames according to original data.frame
-    colnames(dat2) <- colnames(dat)
-    
-    return(dat2)
-}
-
-################
-
-
-identify_peaks <- function(x, tsh, report=T){
-    ## function to identify suspicious sudden peaks in attenuation data
-    ##
-    ## Inputs: x - vector with total loss or attenuation values
-    ## Outputs: id.out - indexes of values to be filtered out
-    
-    x <- as.numeric(x)
-    dif <- x[-1]-x[-length(x)]
-    
-    ext1 <- c(F, abs(dif[-1] > 0) + (dif[-length(dif)] < 0)==2, F)
-    ext2 <- c(F, abs(dif[-1] < 0) + (dif[-length(dif)] > 0)==2, F)
-    ext <- (ext1+ext2) > 0
-    dif2 <- apply(data.frame(abs(c(dif,0)), abs(c(0,dif))), 1, min)*ext
-    
-    id.out <- which(abs(dif2) > tsh) 
-    
-    if(report==T){
-        print(paste("Values Identified:", length(id.out)))    
-    }
-    
-    return(id.out)
-}
-
-
-#####################
-
+## ---- baseline identification ---- ##
 
 baseline_fenicia <- function(tpl, m){
     
-    # Baseline model for CML rainfall estimation
-    # for details see eq. 3 and 17 in Fenicia et al 2012, Microwave links
-    # for rainfall estimation in an urban environment: 
-    # Insights from an experimental setup in Luxembourg-City)
-    # Inputs: tpl - vector with total path loss [dB]
-    #         m   - filter parameter [-]
+    ## Baseline model for CML rainfall estimation
+    ## for details see eq. 3 and 17 in Fenicia et al 2012, Microwave links
+    ## for rainfall estimation in an urban environment: 
+    ## Insights from an experimental setup in Luxembourg-City)
+    ## Arguments: tpl - vector with total path loss [dB]
+    ##         m   - filter parameter [-]
+    ## Returns: vector with baseline values (dB)
     
-    # identify and filter out NA values
+  
+  # identify and filter out NA values, NA check
     
     na.ids <- which(is.na(tpl))
-    
     if(length(na.ids) == length(tpl)){
         stop('tpl must not have only NA values!')
     }
+  
+  # calculate baseline    
     
     B1 <- rep(NA, length(tpl))
     
@@ -182,12 +189,12 @@ baseline_fenicia <- function(tpl, m){
 
 #####################
 
-baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear"){
+baseline_schleiss <- function (tabT, tabA, tabS, w = 6 * 3600, method = "linear") {
     
-    ## Baseline estimation algorithm
+    ## Baseline estimation algorithm of Schleiss:
     ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
     
-    ## Inputs:
+    ## Arguments:
     ## tabT = vector with sorted measurement times (in seconds)
     ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT
     ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
@@ -253,191 +260,264 @@ baseline_schleiss <- function(tabT, tabA, tabS, w = 6 * 3600, method = "linear")
 #####################
 
 
-baseline_Qsmoothing <- function (tpl, fun = 'mean', q = .5, win = 7 * 24, ...) {
-    # baseline calculated as moving quantile window through smooting of hourly data using first
-    # predefined function and then quantile. The window is moving is moving by hourly steps.
-    # The window length should be set up considering typical duratio of rain
-    # events to ensure sufficienlty high ratio of dry weather records is within
-    # window range (in each step). 
-    #
-    #'@param tpl - zoo series of tpl, one channel
-    #'@param q - quantile (0-1) of tpl hourly subset (within moving window) used for
-    #            basline.
-    #'@param win - smoothing window size in hours (default is one week)
-    
+baseline_Qsmoothing <- function (tl, fun = 'mean', q = .5, win = 7 * 24, ...) {
+  #' Estimate basilne from sub-hurly total losses using moving quantile window.
   
-  tpl_h <- zoo_aggreg_by(tpl, 60, align = 'right', fun = fun, na.rm = T, ...)
-  b_h <- rollapply(tpl_h, win, quantile, probs = q, na.rm = T,
+  ## window range (in each step). 
+  #
+  #'@param tl - zoo series of tl, one channel
+  #'@param q - quantile (0-1) of tl hourly subset (within moving window) used for
+  #            basline.
+  #'@param win - smoothing window size in hours (default is one week)
+  #'@return zoo time series corresponding to input TL time series with baseline values 
+    
+  #'@details The function uses aggregation to hourly time step to reduce computational cost.  
+  #' The window length should be set up considering typical duratio of rain
+  #' events to ensure sufficienlty high ratio of dry weather records is within
+  
+  
+  tl_hourly <- zoo_aggreg_by(tl, 60, align = 'right', fun = fun, na.rm = T, ...)
+  b_hourly <- rollapply(tl_hourly, win, quantile, probs = q, na.rm = T,
                    align = 'center', by = 1, partial = T)
-  b_h2 <- rollapply(b_h, win, mean, na.rm = T, align = 'center',
+  b_hourly2 <- rollapply(b_hourly, win, mean, na.rm = T, align = 'center',
                     by = 1, partial = T)
-  b1min <- tpl
-  b1min[] <- NA
-  b1min[index(b_h2)] <- b_h2
-  b1min <- na.approx(b1min, method = 'linear', rule = 2, f = .5)
+  b <- tl
+  b[] <- NA
+  b[index(b_hourly2)] <- b_hourly2
+  b <- na.approx(b, method = 'linear', rule = 2, f = .5)
   
-  return (b1min)
+  return (b)
   
 }
 
-######################
 
 
-wet_antenna_attenuation <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
-    
-    ## Dynamic wet-antenna attenuation model
-    ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
-    ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
-    ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
-    
-    ## Inputs:
-    ## tabT = vector with sorted measurement times (in seconds)
-    ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
-    ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
-    ## tauW = average antenna wetting time (in minutes)
-    ## Wmax = maximum wet-antenna attenuation (in dB)
-    ## w0   = initial wet-antenna attenuation (in dB)
-    
-    ## Output:
-    ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
-    print(paste("execution started at", Sys.time()))
-    ## Local variables:
-    NtabT <- length(tabT)
-    NtabA <- length(tabA)
-    NtabS <- length(tabS)
-    notNA <- which(!is.na(tabA))
-    NNA   <- length(notNA)
-    
-    ## Basic checks on input parameters:
-    if(NtabT==0){stop("tabT is empty")}
-    if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
-    if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
-    if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
-    if(is.na(tauW)){stop("NA value not allowed for tauW")}
-    if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
-    if(tauW<=0){stop("tauW must be strictly positive")}
-    if(Wmax<0){stop("negative values are not allowed for Wmax")}
-    if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
-    
-    ## Compute wet-antenna attenuation
-    WAA <- rep(NA,NtabT)
-    if(NNA>0){WAA[notNA[1]] <- w0}
-    if(NNA==1){return(WAA)}
-    for(itr in 2:NNA){
-        j <- notNA[itr]
-        if(tabS[j]==0){
-            WAA[j] <- max(min(tabA[j],Wmax),0)
-            next
-        }
-        i <- notNA[itr-1]
-        dt <- (tabT[j]-tabT[i])/60
-        WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
-        if(WAA[j]>Wmax){WAA[j] <- Wmax}
-        if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
-        if(WAA[j]<0){WAA[j] <- 0}
-    }
-    print(paste("execution endeded at", Sys.time()))
-    return(WAA)
+
+# ========================
+# Dry-wet classification
+# ========================
+
+
+
+# ========================
+# WAA functions
+# ========================
+
+
+WAA_khar_1 <- function(att.meas, mod.par){
+  ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
+  ## Ipnuts: 
+  ##       att.meas   - attenuation of MWL for which WAA is estimated
+  ##       mod.par    - vector with model parameters c(C, d)
+  ## Returns: Aa - wet antenna attenuation of one antenna
+  
+  Cc <- mod.par[1]   #maximal expected attenuation caused by WA effect
+  d <- mod.par[2] #empirical parameter
+  
+  #filter out negative values
+  att.meas[which(att.meas < 0)] <- 0
+  
+  Aa <- Cc*(1-exp(-d*att.meas))
+  
+  
+  return(Aa)
 }
 
 
-#####################
+###################
 
 
-wet_antenna_attenuation_fast <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
-        
-        ## Dynamic wet-antenna attenuation model
-        ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
-        ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
-        ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
-        
-        ## Inputs:
-        ## tabT = vector with sorted measurement times (in seconds)
-        ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
-        ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
-        ## tauW = average antenna wetting time (in minutes)
-        ## Wmax = maximum wet-antenna attenuation (in dB)
-        ## w0   = initial wet-antenna attenuation (in dB)
-        
-        ## Output:
-        ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
-        print(paste("execution started at", Sys.time()))
-        ## Local variables:
-        NtabT <- length(tabT)
-        NtabA <- length(tabA)
-        NtabS <- length(tabS)
-        notNA <- which(!is.na(tabA))
-        NNA   <- length(notNA)
-        
-        ## Basic checks on input parameters:
-        if(NtabT==0){stop("tabT is empty")}
-        if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
-        if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
-        if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
-        if(is.na(tauW)){stop("NA value not allowed for tauW")}
-        if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
-        if(tauW<=0){stop("tauW must be strictly positive")}
-        if(Wmax<0){stop("negative values are not allowed for Wmax")}
-        if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
-        
-        ## Compute wet-antenna attenuation
-        WAA <- rep(NA,NtabT)
-        if(NNA>0){WAA[notNA[1]] <- w0}
-        if(NNA==1){return(WAA)}
-        
-        tabS.NNA <- tabS[notNA]
-        tabT.NNA <- tabT[notNA]
-        dt <- tabT.NNA[-1] - tabT.NNA[-length(tabT.NNA)]
-        
-        for(itr in 2:NNA){
-            j <- notNA[itr]
-            if(tabS[j]==0){
-                WAA[j] <- max(min(tabA[j],Wmax),0)
-                next
-            }
-            i <- notNA[itr-1]
-            dt <- (tabT[j]-tabT[i])/60
-            WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
-            if(WAA[j]>Wmax){WAA[j] <- Wmax}
-            if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
-            if(WAA[j]<0){WAA[j] <- 0}
-        }
-        print(paste("execution endeded at", Sys.time()))
-        return(WAA)
-    }
+WAA_khar_2 <- function(att.meas, att.meas2, mod.par){
+  ## Dual-frequency Wet antenna attenuation model (Kharadly 2001)
+  ## Ipnuts: 
+  ##       att.meas   - attenuation of MWL for which WAA is estimated
+  ##       att.meas2  - attenuation of MWL of same (similar) path and
+  ##                    different frequency
+  ##       mod.par    - vector with model parameters c(Sp, gama), where Sp
+  ##                    is ratio of path attenuations (based on ITU) and gama
+  ##                    ratio of WAA
+  ## Returns: Aa - wet antenna attenuation of one antenna
+  
+  Sp <- mod.par[1]   #maximal expected attenuation caused by WA effect
+  gama <- mod.par[2] #empirical parameter
+  
+  #filter out negative values
+  att.meas[which(att.meas < 0)] <- 0
+  
+  Aa <- (att.meas2-Sp*att.meas)/(gama-Sp)
+  
+  return(Aa)
+}
 
+###################
 
+# B)
+#functions to correct wet antenna using the Leijnse model
+#coded by Martin Fencl
+#last update: 2015/07/14
 
-
-
-#####################
-
-
-plot2 <- function(..., h = seq(0, 50, 5), v = seq(0, 50, 5), g.col = '#00000044'){
-    # plot graph with grid lines
+WAA_leij<-function(R, fr, thickpars, refra){
+  
+  ## Calculates wet antena attenuation according to Leijnse 2007
+  ## Last update: 2015/07/14
+  ##
+  ## Arguments:
+  ##      R           - vector with rain rates [mm/h]
+  ##      fr          - NWL frequency [GHz]
+  ##      thickpars   - vector with gama and delta parameter to calculate
+  ##                     thickness of a water film form rain rate
+  ##          refra   - refractive index of water, vector of two elements 
+  ##                      with real and imaginary part of a complex number
+  ## Returns:         - Wet antenna attenuation [dB]
+  
+  
+  if(missing(thickpars)){
+    gama <- 2.06*10^-5
+    delta <- 0.24
+  }else{
+    gama <- thickpars[1]
+    delta <- thickpars[2]
+  }
+  
+  if(missing(refra)){
+    refra <- fun_refra(fr)
+  }
+  
+  
+  if(length(which(R<0)) > 0){R[which(R<0)] <- 0}
+  
+  R0 <- R[which(R==0)]
+  R1 <- R[which(R > 0)]
+  
+  if(length(R1) > 0){
     
-    plot(...)
+    f<-fr*10^9  #frequency of the link [Hz]
     
-    abline(h = h, lty=3, col = g.col) #grid
-    abline(v = v, lty=3, col = g.col) #grid
+    #Thicknes of the drop layer on the antenna
+    l <- gama*R1^delta
+    
+    #Calculate wet antenna attenuation
+    
+    j <- complex(imaginary=1)
+    c <- 2.99*10^8
+    expo <- j*2*pi*f/c
+    
+    
+    #Segelstein, D., 1981: "The Complex Refractive Index of Water", M.S.Thesis,University of Missouri--Kansas City
+    mh2o<-complex(real=refra[1],imaginary=refra[2])     
+    mair <- 1
+    mant <- 1.73+0.014*j
+    lant <- 0.001
+    
+    
+    x1 <- (mair+mh2o)*(mh2o+mant)*(mant+mair)*exp(-expo*(mant*lant+mh2o*l))
+    x2 <- (mair-mh2o)*(mh2o-mant)*(mant+mair)*exp(-expo*(mant*lant-mh2o*l))
+    x3 <- (mair+mh2o)*(mh2o-mant)*(mant-mair)*exp(expo*(mant*lant-mh2o*l))
+    x4 <- (mair-mh2o)*(mh2o+mant)*(mant-mair)*exp(expo*(mant*lant+mh2o*l))
+    
+    y1 <- (mair+mant)^2*exp(-expo*mant*lant)
+    y2 <- (-(mair-mant)^2*exp(expo*mant*lant))
+    
+    frac <- (x1+x2+x3+x4)/(2*mh2o*(y1+y2))
+    Aa1 <- 10*log(abs(frac)^2,10)
+    
+    if(length(R0) > 0){
+      Aa <- rep(NA, length(R0) + length(R1))
+      Aa[which(R==0)] <- 0
+      Aa[which(R>0)] <- Aa1
+    }else{Aa <- Aa1}        
+    
+  }else{
+    if(length(R0) > 0){Aa <- rep(0, length(R0))}else{Aa <- NULL}
+  }
+  
+  
+  return(Aa)
 }
 
 
-######################
+###################
+
+
+WAA_schl <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
+  
+  ## Dynamic wet-antenna attenuation model
+  ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
+  ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
+  ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
+  
+  ## Arguments:
+  ## tabT = vector with sorted measurement times (in seconds)
+  ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
+  ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
+  ## tauW = average antenna wetting time (in minutes)
+  ## Wmax = maximum wet-antenna attenuation (in dB)
+  ## w0   = initial wet-antenna attenuation (in dB)
+  
+  ## Output:
+  ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
+  print(paste("execution started at", Sys.time()))
+  ## Local variables:
+  NtabT <- length(tabT)
+  NtabA <- length(tabA)
+  NtabS <- length(tabS)
+  notNA <- which(!is.na(tabA))
+  NNA   <- length(notNA)
+  
+  ## Basic checks on input parameters:
+  if(NtabT==0){stop("tabT is empty")}
+  if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
+  if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
+  if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
+  if(is.na(tauW)){stop("NA value not allowed for tauW")}
+  if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
+  if(tauW<=0){stop("tauW must be strictly positive")}
+  if(Wmax<0){stop("negative values are not allowed for Wmax")}
+  if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
+  
+  ## Compute wet-antenna attenuation
+  WAA <- rep(NA,NtabT)
+  if(NNA>0){WAA[notNA[1]] <- w0}
+  if(NNA==1){return(WAA)}
+  
+  tabS.NNA <- tabS[notNA]
+  tabT.NNA <- tabT[notNA]
+  dt <- tabT.NNA[-1] - tabT.NNA[-length(tabT.NNA)]
+  
+  for(itr in 2:NNA){
+    j <- notNA[itr]
+    if(tabS[j]==0){
+      WAA[j] <- max(min(tabA[j],Wmax),0)
+      next
+    }
+    i <- notNA[itr-1]
+    dt <- (tabT[j]-tabT[i])/60
+    WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
+    if(WAA[j]>Wmax){WAA[j] <- Wmax}
+    if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
+    if(WAA[j]<0){WAA[j] <- 0}
+  }
+  print(paste("execution endeded at", Sys.time()))
+  return(WAA)
+}
+
+
+
+
 
 
 get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
     ## function to assign R-k power law parameters to MWL of given frequency and polarization. 
     ## Parameters are based on Rec. ITU-R P.838-3.
     ##
-    ## Inputs:   Freq  - Frequency in GHz 
+    ## Arguments:   Freq  - Frequency in GHz 
     ##           Pol   - polarization ("V" or "H")
     ##           conv - indicating if to convert original ITU parameters to 
     ##                  (alpha & beta) parameters for rainfall estimation or keep
     ##                  original ITU values (a & b)
     ##          digits - integer indicating number of decimal places to round the parameters, value NULL does no rounding
     ##
-    ## Outputs:  data frame with R-k power law parameters.
+    ## Returns:  data frame with R-k power law parameters.
     
     
     #check inputs  
@@ -482,39 +562,22 @@ get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
 }
 
 
-##################
 
 
-###############
-
-polyline <- function(x,y, ..., from='zero', border=NA){
-    ## Function to plot time series as solid polygon
-    ## Inputs: x, ... - Arguments of the plot function
-    ##         from - indicates the baseline of the  polygon, 'min' sets the
-    ##                baseline to the minimal value of y, 'zero ' sets it to 0 
-    
-    if(from == 'zero'){
-        poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
-                          c(0, y[1:length(y)], 0, 0))
-    }else if(from == 'zero'){
-        y.min = min(y, na.rm=T)
-        poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
-                          c(y.min, y[1:length(y)], y.min, y.min))
-    }else{stop('from has to be \'zero\' or \'min\'')}
-    
-    polygon(poly, ..., border=border)
-}
+## -----------------------------
+## Functions to analyze results:
+## -----------------------------
 
 
-###############
+## ---- Performance metrics ---- ##
 
 rmse <- function(x,y){sqrt(mean((x - y)^2, na.rm=T))}
 
 rel_bias <- function(x,y){
     ## relative bias (rel. error of total cumulative quantities)
-    ## inputs: x - reference
+    ## Arguments: x - reference
     ##         y - evaluated variable
-    ## outputs: relaitve bias
+    ## Returns: relaitve bias
     
     dif <- y - x
     nas <- which(is.na(dif)==T)
@@ -527,13 +590,11 @@ rel_bias <- function(x,y){
 }
 
 
-###########
-
 nse <- function(x,y){
     ## Nash-Sutcliffe Efficiency index
-    ## inputs: x - reference
+    ## Arguments: x - reference
     ##         y - evaluated variable
-    ## outputs: Nash-Sutcliffe index
+    ## Returns: Nash-Sutcliffe index
     
     dif <- y - x
     nas <- which(is.na(dif)==T)
@@ -545,7 +606,40 @@ nse <- function(x,y){
     return(nse)
 }
 
-##############
+
+
+## ---- Plotting functions ---- ##
+
+
+plot2 <- function(..., h = seq(0, 50, 5), v = seq(0, 50, 5), g.col = '#00000044'){
+  # plot graph with grid lines
+  
+  plot(...)
+  
+  abline(h = h, lty=3, col = g.col) #grid
+  abline(v = v, lty=3, col = g.col) #grid
+}
+
+
+polyline <- function(x,y, ..., from='zero', border=NA){
+  ## Function to plot time series as solid polygon
+  ## Arguments: x, ... - Arguments of the plot function
+  ##         from - indicates the baseline of the  polygon, 'min' sets the
+  ##                baseline to the minimal value of y, 'zero ' sets it to 0 
+  
+  if(from == 'zero'){
+    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
+                      c(0, y[1:length(y)], 0, 0))
+  }else if(from == 'zero'){
+    y.min = min(y, na.rm=T)
+    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
+                      c(y.min, y[1:length(y)], y.min, y.min))
+  }else{stop('from has to be \'zero\' or \'min\'')}
+  
+  polygon(poly, ..., border=border)
+}
+
+
 
 plot_scatter = function(x,y, y.intersp = 2, cex.leg = 1.2, pos = 'topleft', ...){
     ## Function to plot nice scatter plot with legend 
@@ -559,12 +653,11 @@ plot_scatter = function(x,y, y.intersp = 2, cex.leg = 1.2, pos = 'topleft', ...)
            y.intersp = y.intersp, cex = cex.leg)
 }
 
-##############
 
 plot_3_scatters = function(z,...){
     ## Function to plot three scatter plots in row showing correlation between
     ## three variables
-    ## Inputs: z - data.frame with three variables
+    ## Arguments: z - data.frame with three variables
     
     layout(matrix(1:3, 1,3))
     par(mar=c(4,4,.5,.5))
@@ -572,6 +665,27 @@ plot_3_scatters = function(z,...){
     plot_scatter(z[ ,1], z[ ,2], xlab = colnames(z)[1], ylab = colnames(z)[2], ...)
     plot_scatter(z[ ,1], z[ ,3], xlab = colnames(z)[1], ylab = colnames(z)[3],...)
     plot_scatter(z[ ,2], z[ ,3], xlab = colnames(z)[2], ylab = colnames(z)[3],...)
+}
+
+
+zero_before <- function(x, dig){
+  ## function to convert numbers to strings and add zeros before them 
+  ##
+  ## Arguments: x   - integer
+  ##         dig - number of digits
+  ##
+  ## Returns: number as character with zeros before
+  
+  if(round(x, 0) != x){stop("input has to be an integer")}
+  if(round(dig, 0) != dig){stop("number of digits has to be an integer")}
+  
+  n.zer <- dig - floor(log(x, 10)) - 1
+  if(n.zer < 0){
+    n.zer <- 0
+    warning("Input is longer than defined number of digits!")
+  }
+  
+  return(paste(paste(rep("0", n.zer), sep="", collapse=""), x, sep=""))
 }
 
 
@@ -662,7 +776,7 @@ costfun_kRmodel <- function(r.mod, r, logtransform = F){
 dyn_cal_power <- function(A, R, L, beta, w, r.thr, al.lim, aw.lim, b.lim, wei)
     ## function to dynamicaly calibrate simpified k-R relation (R=alpha*k^beta-aw)
     ## alpha and aw are calibratio parameters.    
-    ## inputs: 
+    ## Arguments: 
     ##  A - attenuation vector [dB] (aggregated to arbitrary time step) 
     ##  R - rain rate vector [mm/h] corresponding to A 
     ##  L - MWL length [m]
@@ -674,7 +788,7 @@ dyn_cal_power <- function(A, R, L, beta, w, r.thr, al.lim, aw.lim, b.lim, wei)
 ##  wei - weights binding the value close to initial one (vector of three
 ##        elements, only third elements intended for beta is currently
 ##        implemented)
-##  outputs:
+##  Returns:
 ##  p 
 
 {
@@ -858,7 +972,7 @@ disaggreg_parameters <- function(p.mtx, p.idx, pout.idx, method="constant")
     ##        p.idx - time stamps (or other index) coresponding to parameters (p.mtx rows)
     ##        pout.idx - time stamps to which p.mtx should be disaggregated
     ##        method - method to use for extrapolation: "constant" or "linear" (see ?approx)
-    ## Outputs: pmtx.out - table with dissagregated parameters with each row corresponding to pout.idx
+    ## Returns: pmtx.out - table with dissagregated parameters with each row corresponding to pout.idx
     
 {
     
@@ -925,10 +1039,10 @@ cml.to.points <- function(c.tab, Lmax){
     # Schematize CMLs as single points (in their centre) or as multiple points
     # equaly spaced along the CML path
     #
-    # Inputs:    c.tab - data.frame with CML cartesian coordinates
+    # Arguments:    c.tab - data.frame with CML cartesian coordinates
     #                    (Ax, Ay, Bx, By) [m]
     #            Lmax - maximal length [m] of segment represented by one point
-    # Outputs:   list containg: K - table with point coordinates and CML id to
+    # Returns:   list containg: K - table with point coordinates and CML id to
     #            which they belong to, K.dist - square matrix with distances
     #            between points (cols and rows coorespond to rows of K table)
     #         
@@ -976,9 +1090,9 @@ K.distance.mtx <- function(K){
     #------
     # function to calculate distances between CML points 
     #
-    # Inputs:    K - table with coordinates of points representing CML as 
+    # Arguments:    K - table with coordinates of points representing CML as 
     #                returned by fun cml.to.points
-    # Outputs:   K.dist - square matrix with distances between points,
+    # Returns:   K.dist - square matrix with distances between points,
     #                     cols and rows coorespond to rows of K table
     #         
     # Last modified: 2017/08/14 
@@ -1003,7 +1117,7 @@ distribute.cmlR.1D <- function(R, K, K.dist, q.var, z=5, n.iter = 10, rad=3000,
     #------
     # Distribute path-averaged CML rainfall along points representing CMLs
     #
-    # Inputs:   
+    # Arguments:   
     # R  - path averaged rainfall intensity of CMLs
     # K     - table with coordinates of points representing CML and id of CML to
     #         which the points belong to
@@ -1016,7 +1130,7 @@ distribute.cmlR.1D <- function(R, K, K.dist, q.var, z=5, n.iter = 10, rad=3000,
     # tune - if tune = T then results for each iteration are returned in a form
     #        of matrix else final iterated rainfall is
     #                   returnd in a form of K table
-    # Outputs:   K - K table with two more columns corresponding to initial and
+    # Returns:   K - K table with two more columns corresponding to initial and
     #                esitmated (distributed) rainfall intensities
     #            OR (if tune = T)
     #            rain - matrix with iterated rainfall intensitis where rows
@@ -1101,7 +1215,7 @@ Rextrapolate_to_2Dgrid <- function(K2, x.lim, y.lim, g.size, q.var, z, rad = 3) 
     #
     # reconstructs the rainfall distribution from MWL path averaged rainfall
     #
-    # Inputs:    K2 - data.frame CML point info and rainfall
+    # Arguments:    K2 - data.frame CML point info and rainfall
     #        x.lim - Xcoordinates of field edges
     #        y.lim - Ycoordinates of field edges
     #        g.size - size of a grid cell [m]
@@ -1109,7 +1223,7 @@ Rextrapolate_to_2Dgrid <- function(K2, x.lim, y.lim, g.size, q.var, z, rad = 3) 
     #            z - coefficient adjusting ratio between distance and q.var
     #                weights
     # rad - radius of influence (decorrelarion distance) [m]
-    # Outputs:   R2D - data.frame with two columns with X and Y ccordinates
+    # Returns:   R2D - data.frame with two columns with X and Y ccordinates
     #                  and third column with rainfall intensities
     #
     # Last modified: 2017/08/15 by Martin Fencl
@@ -1176,7 +1290,7 @@ select.best.link <- function(cell.id, e.link, var1, var2){
     #------
     # select most relevant link from all links belogning to one cell
     #
-    #  Inputs:
+    #  Arguments:
     # cell.id   - id of cell to which more links belong
     # e.link - data.frame with all link ids and respective cell ids
     # var1   - variance of link due to siganl quantization and wet antenna
@@ -1184,7 +1298,7 @@ select.best.link <- function(cell.id, e.link, var1, var2){
     # var2   - expected variance along the link path due to rainfall spatial
     #          variability
     #          (vector with values for all links)
-    # Outputs:
+    # Returns:
     # integer - id of selected link
     #------  
     
@@ -1203,7 +1317,7 @@ R.along.mwl.cell <- function(cell, dis0, L2, w.rain=1/5){
     # reconstructs the rainfall distribution along particular CMLs by
     # joined analysis of nearby CMLs
     #
-    # Inputs:  cell - data.frame with CML info schematized by square cells 
+    # Arguments:  cell - data.frame with CML info schematized by square cells 
     #          dis0 - square matrix, where [n , m] element represent distances 
     #                 between cell[n, ] and cell[m, ].
     #          L2 - vector with amounts of cells representing respective CML
@@ -1278,7 +1392,7 @@ Rcell2reg.grid <- function(cell, dis0, rad1 = 3, rad2 = 5){
     #------
     # extrapolate rain rates along CMLs to the regular 2D grid
     #
-    # Inputs:  cell - data.frame with CML info schematized by square cells 
+    # Arguments:  cell - data.frame with CML info schematized by square cells 
     #          dis0 - distance matrix of all cells
     #      
     #         
@@ -1353,279 +1467,62 @@ get_palette <- function() {
 
 
 
-#########################
+## -----------------------
+## Helpers:
+## -----------------------
 
-
-# ========================
-# Dry-wet classification
-# ========================
-
-drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
-                             na.rm = T, tsh = NULL) {
-  
-  #' Dry/wet weather classification based on standard deviation moving window
-  #' according to Schleiss et al. 2009. Window width is 
-  #' 
-  #'@param tpl time series with TPL (attenuation) data
-  #'@param q quantile defining threshold for sds correpsonding to dry and wet weather, i.e.
-  #'ratio of dry data points to all data points.
-  #'@param width size of moving sd window in data points.
-  #'Size of moving window should consider local rainfall climatology. Schleiss et al. (2019)
-  #'recommends size corresponding to 15 - 30 min for Paris.
-  #'@param align alignment of moving winodw ('left', 'center', 'right')
-  #'@param partial logicla or numeric. See zoo.rollapply.
-  #'@param na.rm logical. If TRUE then removes NAs when calculating sd within a window
-  #'Returns list with sd time series and time series of classifier (F = dry, T = wet)
+insert_missing_records <- function(zoo_ser, step){
+  ## inserts time steps and assign to them NA value to make the input time series regular
+  ##
+  ## Arguments:
+  ## dat  - data.frame of n columns with time stamp in the first column
+  ## step - time step which should have the resulting time series (in minutes)
+  ##
+  ## returns:
+  ## dat2 - data.frame with consistent time series
   
   require(zoo)
   
-  tpl <- as.zoo(tpl)
+  dat <- data.frame('time' = index(zoo_ser), 'data'= coredata((zoo_ser)))
   
-  sd_tpl <- rollapply(tpl, width = width, sd, by = 1, align = align,
-                      partial = partial, na.rm = na.rm)
-
-  if (is.null(tsh)) {tsh <- quantile(sd_tpl, q, na.rm = T)}
+  dat2 <- reg_series(dat, step)
+  zoo2_ser <- zoo(dat2[ , -1], dat2[ , 1])
+  colnames(zoo2_ser) <- colnames(zoo_ser)
   
-  wet <- sd_tpl > tsh
-  
-  out <- list('sd' = sd_tpl, 'wet' = wet)
-  return (out)
-  
+  return(zoo2_ser)
 }
 
 
 
 
-moving_sd <- function (ts, width, align = 'left', partial = T, na.rm = T) {
+reg_series <- function(dat, step){
+  ## function to insert time steps to make time series regular
+  ##
+  ## Arguments:
+  ## dat  - data.frame of n columns with time stamp in the first column
+  ## step - time step which should have the resulting time series (in minutes)
+  ##
+  ## returns:
+  ## dat2 - data.frame with consistent time series
+  tim0 <- dat[,1]
+  tim <- seq(tim0[1],tim0[length(tim0)], by=step*60)
+  id.add <- which(is.element(tim, tim0)==T)
+  dat2 <- as.data.frame(matrix(NA, ncol=ncol(dat), nrow=length(tim)))
+  dat2[ ,1] <- tim
+  dat2[id.add, -1] <- dat[ ,-1]
   
-  #' Calculate series of standard deviations by shifting forward window of 
-  #' defined size 
-  #' 
-  #'@param ts time series with TPL (attenuation) data
-  #'@param width size of moving sd window in data points (default is one week)
-  #' Outputs:
-  #' sd_ts - time series of standard deviations
+  # name colnames according to original data.frame
+  colnames(dat2) <- colnames(dat)
   
-  require(zoo)
-  
-  ts <- as.zoo(ts)
-  sd_ts <- rollapply(ts, width = width, sd, by = 1, align = align,
-                     partial = partial, na.rm = na.rm)
-
-  return (sd_ts)
-  
+  return(dat2)
 }
 
-# ========================
-# WAA functions
-# ========================
-
-
-WAA_khar_1 <- function(att.meas, mod.par){
-    ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
-    ## Ipnuts: 
-    ##       att.meas   - attenuation of MWL for which WAA is estimated
-    ##       mod.par    - vector with model parameters c(C, d)
-    ## Outputs: Aa - wet antenna attenuation of one antenna
-    
-    Cc <- mod.par[1]   #maximal expected attenuation caused by WA effect
-    d <- mod.par[2] #empirical parameter
-    
-    #filter out negative values
-    att.meas[which(att.meas < 0)] <- 0
-    
-    Aa <- Cc*(1-exp(-d*att.meas))
-    
-    
-    return(Aa)
-}
-
-
-###################
-
-
-WAA_khar_2 <- function(att.meas, att.meas2, mod.par){
-    ## Dual-frequency Wet antenna attenuation model (Kharadly 2001)
-    ## Ipnuts: 
-    ##       att.meas   - attenuation of MWL for which WAA is estimated
-    ##       att.meas2  - attenuation of MWL of same (similar) path and
-    ##                    different frequency
-    ##       mod.par    - vector with model parameters c(Sp, gama), where Sp
-    ##                    is ratio of path attenuations (based on ITU) and gama
-    ##                    ratio of WAA
-    ## Outputs: Aa - wet antenna attenuation of one antenna
-    
-    Sp <- mod.par[1]   #maximal expected attenuation caused by WA effect
-    gama <- mod.par[2] #empirical parameter
-    
-    #filter out negative values
-    att.meas[which(att.meas < 0)] <- 0
-    
-    Aa <- (att.meas2-Sp*att.meas)/(gama-Sp)
-    
-    return(Aa)
-}
-
-###################
-
-# B)
-#functions to correct wet antenna using the Leijnse model
-#coded by Martin Fencl
-#last update: 2015/07/14
-
-WAA_leij<-function(R, fr, thickpars, refra){
-    
-    ## Calculates wet antena attenuation according to Leijnse 2007
-    ## Last update: 2015/07/14
-    ##
-    ## inputs:
-    ##      R           - vector with rain rates [mm/h]
-    ##      fr          - NWL frequency [GHz]
-    ##      thickpars   - vector with gama and delta parameter to calculate
-    ##                     thickness of a water film form rain rate
-    ##          refra   - refractive index of water, vector of two elements 
-    ##                      with real and imaginary part of a complex number
-    ## outputs:         - Wet antenna attenuation [dB]
-    
-    
-    if(missing(thickpars)){
-        gama <- 2.06*10^-5
-        delta <- 0.24
-    }else{
-        gama <- thickpars[1]
-        delta <- thickpars[2]
-    }
-    
-    if(missing(refra)){
-        refra <- fun_refra(fr)
-    }
-    
-    
-    if(length(which(R<0)) > 0){R[which(R<0)] <- 0}
-    
-    R0 <- R[which(R==0)]
-    R1 <- R[which(R > 0)]
-    
-    if(length(R1) > 0){
-        
-        f<-fr*10^9  #frequency of the link [Hz]
-        
-        #Thicknes of the drop layer on the antenna
-        l <- gama*R1^delta
-        
-        #Calculate wet antenna attenuation
-        
-        j <- complex(imaginary=1)
-        c <- 2.99*10^8
-        expo <- j*2*pi*f/c
-        
-        
-        #Segelstein, D., 1981: "The Complex Refractive Index of Water", M.S.Thesis,University of Missouri--Kansas City
-        mh2o<-complex(real=refra[1],imaginary=refra[2])     
-        mair <- 1
-        mant <- 1.73+0.014*j
-        lant <- 0.001
-        
-        
-        x1 <- (mair+mh2o)*(mh2o+mant)*(mant+mair)*exp(-expo*(mant*lant+mh2o*l))
-        x2 <- (mair-mh2o)*(mh2o-mant)*(mant+mair)*exp(-expo*(mant*lant-mh2o*l))
-        x3 <- (mair+mh2o)*(mh2o-mant)*(mant-mair)*exp(expo*(mant*lant-mh2o*l))
-        x4 <- (mair-mh2o)*(mh2o+mant)*(mant-mair)*exp(expo*(mant*lant+mh2o*l))
-        
-        y1 <- (mair+mant)^2*exp(-expo*mant*lant)
-        y2 <- (-(mair-mant)^2*exp(expo*mant*lant))
-        
-        frac <- (x1+x2+x3+x4)/(2*mh2o*(y1+y2))
-        Aa1 <- 10*log(abs(frac)^2,10)
-        
-        if(length(R0) > 0){
-            Aa <- rep(NA, length(R0) + length(R1))
-            Aa[which(R==0)] <- 0
-            Aa[which(R>0)] <- Aa1
-        }else{Aa <- Aa1}        
-        
-    }else{
-        if(length(R0) > 0){Aa <- rep(0, length(R0))}else{Aa <- NULL}
-    }
-    
-    
-    return(Aa)
-}
-
-
-###################
-
-
-WAA_schl <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
-    
-    ## Dynamic wet-antenna attenuation model
-    ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
-    ## References: "Quantification and modeling of wet-antenna attenuation for commercial microwave links"
-    ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
-    
-    ## Inputs:
-    ## tabT = vector with sorted measurement times (in seconds)
-    ## tabA = vector with MWL attenuations measurements (in dB) corresponding to tabT, after removal of the baseline
-    ## tabS = state vector (0=dry ; 1=rainy) corresponding to tabT
-    ## tauW = average antenna wetting time (in minutes)
-    ## Wmax = maximum wet-antenna attenuation (in dB)
-    ## w0   = initial wet-antenna attenuation (in dB)
-    
-    ## Output:
-    ## WAA = vector with wet-antenna attenuations (in dB) corresponding to tabT
-    print(paste("execution started at", Sys.time()))
-    ## Local variables:
-    NtabT <- length(tabT)
-    NtabA <- length(tabA)
-    NtabS <- length(tabS)
-    notNA <- which(!is.na(tabA))
-    NNA   <- length(notNA)
-    
-    ## Basic checks on input parameters:
-    if(NtabT==0){stop("tabT is empty")}
-    if(NtabT!=NtabA){stop("tabT and tabA must have the same number of elements")}
-    if(NtabT!=NtabS){stop("tabT and tabS must have the same number of elements")}
-    if(any(is.na(tabT))){stop("NA values are not allowed in tabT")}
-    if(is.na(tauW)){stop("NA value not allowed for tauW")}
-    if(is.na(Wmax)){stop("NA value not allowed for Wmax")}
-    if(tauW<=0){stop("tauW must be strictly positive")}
-    if(Wmax<0){stop("negative values are not allowed for Wmax")}
-    if(any(tabA<0,na.rm=TRUE)){warning("there were negative attenuation values in tabA")}
-    
-    ## Compute wet-antenna attenuation
-    WAA <- rep(NA,NtabT)
-    if(NNA>0){WAA[notNA[1]] <- w0}
-    if(NNA==1){return(WAA)}
-    
-    tabS.NNA <- tabS[notNA]
-    tabT.NNA <- tabT[notNA]
-    dt <- tabT.NNA[-1] - tabT.NNA[-length(tabT.NNA)]
-    
-    for(itr in 2:NNA){
-        j <- notNA[itr]
-        if(tabS[j]==0){
-            WAA[j] <- max(min(tabA[j],Wmax),0)
-            next
-        }
-        i <- notNA[itr-1]
-        dt <- (tabT[j]-tabT[i])/60
-        WAA[j] <- WAA[i] + (Wmax-WAA[i])*3*dt/tauW
-        if(WAA[j]>Wmax){WAA[j] <- Wmax}
-        if(WAA[j]>tabA[j]){WAA[j] <- tabA[j]}
-        if(WAA[j]<0){WAA[j] <- 0}
-    }
-    print(paste("execution endeded at", Sys.time()))
-    return(WAA)
-}
-
-
-###################
 
 fun_refra <- function(fr){
     
     # Function to get refractive index
-    # Inputs:   fr - frequency in GHz
-    # Outputs:  refr.out - refractive index, vector with real (first element)
+    # Arguments:   fr - frequency in GHz
+    # Returns:  refr.out - refractive index, vector with real (first element)
     #                     and imaginary (second element) part of a refractive
     #                     index
     
@@ -2911,23 +2808,4 @@ fun_refra <- function(fr){
 
 ##################
 
-zero_before <- function(x, dig){
-    ## function to convert number to strings and add zeros to enable alphabetical order.
-    ##
-    ## Inputs: x   - integer
-    ##         dig - number of digits
-    ##
-    ## Outputs: number as character with zeros before
-    
-    if(round(x, 0) != x){stop("input has to be an integer")}
-    if(round(dig, 0) != dig){stop("number of digits has to be an integer")}
-    
-    n.zer <- dig - floor(log(x, 10)) - 1
-    if(n.zer < 0){
-        n.zer <- 0
-        warning("Input is longer than defined number of digits!")
-    }
-    
-    return(paste(paste(rep("0", n.zer), sep="", collapse=""), x, sep=""))
-}
 
