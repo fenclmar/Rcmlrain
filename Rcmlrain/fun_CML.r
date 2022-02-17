@@ -17,7 +17,7 @@
 
 ## Set of functions for processing of raw data in a form of non-regular time series
 
-identify_peaks <- function(tl, tsh, report=T) {
+identify_peaks <- function(tl, tsh, report = T) {
   ## Identifies position of suspicious sudden peaks in the vector of total losses
   ##
   ## Arguments:
