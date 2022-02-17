@@ -11,12 +11,11 @@
 
 
 
-## -----------------------
+## =======================
 ## Preprocessing raw data:
-## -----------------------
+## =======================
 
 ## Set of functions for processing of raw data in a form of non-regular time series
-
 
 identify_peaks <- function(x, tsh, report=T){
   ## Identifies suspicious sudden peaks in attenuation data
@@ -45,6 +44,7 @@ identify_peaks <- function(x, tsh, report=T){
   return(id.peak)
 }
 
+#--------------------------------------
 
 zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
                           insert.missing = T, ...){
@@ -92,16 +92,21 @@ zoo_aggreg_by <- function(x_zoo, step, fun, align = 'center',
     
 }
 
+#--------------------------------------
 
 
 
-## -----------------------
+## =======================
 ## CML rainfall retrieval:
-## -----------------------
+## =======================
 
-## ---- dry-wet classification ---- ##
+#---------------------------------
 
-drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
+# ---- dry-wet classification ----
+
+#---------------------------------
+
+drywet_schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
                              na.rm = T, tsh = NULL) {
   
   #' Dry/wet weather classification based on standard deviation moving window
@@ -134,8 +139,11 @@ drywet_Schleiss <- function (tpl,  q = .94, width, align = 'left', partial = T,
   
 }
 
+#----------------------------------
 
-## ---- baseline identification ---- ##
+# ---- baseline identification ----
+
+#----------------------------------
 
 baseline_fenicia <- function(tpl, m){
     
@@ -182,12 +190,10 @@ baseline_fenicia <- function(tpl, m){
         B1[-na.ids] <- B    
     }
     
-    
     return(B1)    
 } 
 
-
-#####################
+#--------------------------------------
 
 baseline_schleiss <- function (tabT, tabA, tabS, w = 6 * 3600, method = "linear") {
     
@@ -256,9 +262,7 @@ baseline_schleiss <- function (tabT, tabA, tabS, w = 6 * 3600, method = "linear"
     return(tabB)    
 }
 
-
-#####################
-
+#--------------------------------------
 
 baseline_Qsmoothing <- function (tl, fun = 'mean', q = .5, win = 7 * 24, ...) {
   #' Estimate basilne from sub-hurly total losses using moving quantile window.
@@ -290,21 +294,13 @@ baseline_Qsmoothing <- function (tl, fun = 'mean', q = .5, win = 7 * 24, ...) {
   
 }
 
+#--------------------------------------
 
+# ---- Wet antenna correction ---------
 
+#--------------------------------------
 
-# ========================
-# Dry-wet classification
-# ========================
-
-
-
-# ========================
-# WAA functions
-# ========================
-
-
-WAA_khar_1 <- function(att.meas, mod.par){
+WAA_kharadly_1 <- function(att.meas, mod.par){
   ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
   ##       att.meas   - attenuation of MWL for which WAA is estimated
@@ -323,11 +319,9 @@ WAA_khar_1 <- function(att.meas, mod.par){
   return(Aa)
 }
 
+#--------------------------------------
 
-###################
-
-
-WAA_khar_2 <- function(att.meas, att.meas2, mod.par){
+WAA_kharadly_2 <- function(att.meas, att.meas2, mod.par){
   ## Dual-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
   ##       att.meas   - attenuation of MWL for which WAA is estimated
@@ -349,14 +343,9 @@ WAA_khar_2 <- function(att.meas, att.meas2, mod.par){
   return(Aa)
 }
 
-###################
+#--------------------------------------
 
-# B)
-#functions to correct wet antenna using the Leijnse model
-#coded by Martin Fencl
-#last update: 2015/07/14
-
-WAA_leij<-function(R, fr, thickpars, refra){
+WAA_leijense <-function(R, fr, thickpars, refra){
   
   ## Calculates wet antena attenuation according to Leijnse 2007
   ## Last update: 2015/07/14
@@ -435,11 +424,9 @@ WAA_leij<-function(R, fr, thickpars, refra){
   return(Aa)
 }
 
+#--------------------------------------
 
-###################
-
-
-WAA_schl <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
+WAA_schleiss <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
   
   ## Dynamic wet-antenna attenuation model
   ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -502,12 +489,14 @@ WAA_schl <- function(tabT,tabA,tabS,tauW,Wmax,w0=0){
 }
 
 
+#-----------------------------------
 
+# ---- attenuation to rain rate ----
 
-
+#-----------------------------------
 
 get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
-    ## function to assign R-k power law parameters to MWL of given frequency and polarization. 
+    ## returns R-k power law parameters for given frequency and polarization. 
     ## Parameters are based on Rec. ITU-R P.838-3.
     ##
     ## Arguments:   Freq  - Frequency in GHz 
@@ -561,137 +550,25 @@ get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
     return(as.data.frame(mwl.pars))
 }
 
+#--------------------------------------
 
-
-
-## -----------------------------
-## Functions to analyze results:
-## -----------------------------
-
-
-## ---- Performance metrics ---- ##
-
-rmse <- function(x,y){sqrt(mean((x - y)^2, na.rm=T))}
-
-rel_bias <- function(x,y){
-    ## relative bias (rel. error of total cumulative quantities)
-    ## Arguments: x - reference
-    ##         y - evaluated variable
-    ## Returns: relaitve bias
-    
-    dif <- y - x
-    nas <- which(is.na(dif)==T)
-    if(length(nas) > 0){
-        err <- sum((y-x)[-nas])/sum(x[-nas])    
-    }else{
-        err <- sum(y-x)/sum(x)    
-    }
-    return(err)
+kRmodel <- function(k, p){
+  ## function to get rain rate from attenuation
+  ## Intputs: k - speicific attenutation [dB/km]
+  ##          p - model pamaeters, c("alpha", "beta")
+  ## Output: r.mod - modeled rainfall intensity [mm/h]
+  
+  k[k < 0] <- 0
+  r.mod <- p[1] * k ^ p[2]
+  return(r.mod)
 }
 
-
-nse <- function(x,y){
-    ## Nash-Sutcliffe Efficiency index
-    ## Arguments: x - reference
-    ##         y - evaluated variable
-    ## Returns: Nash-Sutcliffe index
-    
-    dif <- y - x
-    nas <- which(is.na(dif)==T)
-    if(length(nas) > 0){
-        nse <- 1 - sum(((x-y)[-nas])^2)/sum((x[-nas] - mean(x[-nas]))^2)    
-    }else{
-        nse <- 1 - sum((x-y)^2)/sum((x - mean(x))^2)    
-    }
-    return(nse)
-}
+#--------------------------------------
 
 
-
-## ---- Plotting functions ---- ##
-
-
-plot2 <- function(..., h = seq(0, 50, 5), v = seq(0, 50, 5), g.col = '#00000044'){
-  # plot graph with grid lines
-  
-  plot(...)
-  
-  abline(h = h, lty=3, col = g.col) #grid
-  abline(v = v, lty=3, col = g.col) #grid
-}
-
-
-polyline <- function(x,y, ..., from='zero', border=NA){
-  ## Function to plot time series as solid polygon
-  ## Arguments: x, ... - Arguments of the plot function
-  ##         from - indicates the baseline of the  polygon, 'min' sets the
-  ##                baseline to the minimal value of y, 'zero ' sets it to 0 
-  
-  if(from == 'zero'){
-    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
-                      c(0, y[1:length(y)], 0, 0))
-  }else if(from == 'zero'){
-    y.min = min(y, na.rm=T)
-    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
-                      c(y.min, y[1:length(y)], y.min, y.min))
-  }else{stop('from has to be \'zero\' or \'min\'')}
-  
-  polygon(poly, ..., border=border)
-}
-
-
-
-plot_scatter = function(x,y, y.intersp = 2, cex.leg = 1.2, pos = 'topleft', ...){
-    ## Function to plot nice scatter plot with legend 
-    
-    plot2(x,y, ...)
-    co = round(cor(x,y, use= 'na.or.complete'), 2)
-    l = lm(y ~ x)
-    abline(l, col=2)
-    l = round(l[[1]], 2)
-    legend(pos, c(paste('r =', co), paste('interc. =', l[1]), paste('slope =', l[2])),
-           y.intersp = y.intersp, cex = cex.leg)
-}
-
-
-plot_3_scatters = function(z,...){
-    ## Function to plot three scatter plots in row showing correlation between
-    ## three variables
-    ## Arguments: z - data.frame with three variables
-    
-    layout(matrix(1:3, 1,3))
-    par(mar=c(4,4,.5,.5))
-    
-    plot_scatter(z[ ,1], z[ ,2], xlab = colnames(z)[1], ylab = colnames(z)[2], ...)
-    plot_scatter(z[ ,1], z[ ,3], xlab = colnames(z)[1], ylab = colnames(z)[3],...)
-    plot_scatter(z[ ,2], z[ ,3], xlab = colnames(z)[2], ylab = colnames(z)[3],...)
-}
-
-
-zero_before <- function(x, dig){
-  ## function to convert numbers to strings and add zeros before them 
-  ##
-  ## Arguments: x   - integer
-  ##         dig - number of digits
-  ##
-  ## Returns: number as character with zeros before
-  
-  if(round(x, 0) != x){stop("input has to be an integer")}
-  if(round(dig, 0) != dig){stop("number of digits has to be an integer")}
-  
-  n.zer <- dig - floor(log(x, 10)) - 1
-  if(n.zer < 0){
-    n.zer <- 0
-    warning("Input is longer than defined number of digits!")
-  }
-  
-  return(paste(paste(rep("0", n.zer), sep="", collapse=""), x, sep=""))
-}
-
-
-##################
-## Standard k-R model 
-#################
+## =========================
+## Optimize model parameters
+## =========================
 
 fit_kRmodel <- function(k, R, alpha.lim, beta.lim, logtransform = F)
     # function to fit power law k-R model: R = alpha*k^beta;
@@ -719,8 +596,7 @@ fit_kRmodel <- function(k, R, alpha.lim, beta.lim, logtransform = F)
     return(p)
 }
 
-
-#################
+#--------------------------------------
 
 minfun_kRmodel <- function(par, k, r, logtransform = F)
     #function, which is minimized in fitting
@@ -735,22 +611,7 @@ minfun_kRmodel <- function(par, k, r, logtransform = F)
     
 }
 
-
-##################
-
-
-kRmodel <- function(k, p){
-    ## function to get rain rate from attenuation
-    ## Intputs: k - speicific attenutation [dB/km]
-    ##          p - model pamaeters, c("alpha", "beta")
-    ## Output: r.mod - modeled rainfall intensity [mm/h]
-    
-    k[k < 0] <- 0
-    r.mod <- p[1] * k ^ p[2]
-    return(r.mod)
-}
-
-###################
+#--------------------------------------
 
 costfun_kRmodel <- function(r.mod, r, logtransform = F){
     
@@ -765,13 +626,16 @@ costfun_kRmodel <- function(r.mod, r, logtransform = F){
     return (cost)
 }
 
+#--------------------------------------
 
-        
-        
-        
-##################
-## CML adjusting:
-##################
+      
+
+## ==============
+## CML adjusting
+## ==============
+
+# Functions for adjusting CMLs as proposed in Fencl et al. (2017), 
+# Gauge-adjusted rainfall estimates from commercial microwave links, HESS
 
 dyn_cal_power <- function(A, R, L, beta, w, r.thr, al.lim, aw.lim, b.lim, wei)
     ## function to dynamicaly calibrate simpified k-R relation (R=alpha*k^beta-aw)
@@ -879,10 +743,7 @@ dyn_cal_power <- function(A, R, L, beta, w, r.thr, al.lim, aw.lim, b.lim, wei)
     return(p0)       
 }
 
-
-
-##################
-
+#--------------------------------------
 
 fit_kR_power <- function(k, ref, p1.lim, p2.lim, p3.lim, wei)
     #function to fit power law k-R model: R = alpha*(k - kw)^beta;
@@ -913,8 +774,7 @@ fit_kR_power <- function(k, ref, p1.lim, p2.lim, p3.lim, wei)
     return(p)
 }
 
-
-##################
+#--------------------------------------
 
 minfun_power <- function(pars, x, r.ref, w, beta0)
     #function, which is minimized in fitting
@@ -932,9 +792,7 @@ minfun_power <- function(pars, x, r.ref, w, beta0)
     
 }
 
-
-##################
-
+#--------------------------------------
 
 kRmodel_power <- function(k, p){
     ## function to get rain rate from attenuation
@@ -949,20 +807,13 @@ kRmodel_power <- function(k, p){
     return(r.mod)
 }
 
-##################
+#--------------------------------------
 
 cost_fun_power <- function(mod, ref, p, w, beta0){
     sqrt(sum((mod - ref)^2, na.rm=T)/length(ref))/max(c(ref,1), na.rm=T) + w[3]*(p[3]-beta0)^2
 }
 
-
-##################
-
-
-##################
-
-
-
+#--------------------------------------
 
 disaggreg_parameters <- function(p.mtx, p.idx, pout.idx, method="constant")
     
@@ -1018,20 +869,14 @@ disaggreg_parameters <- function(p.mtx, p.idx, pout.idx, method="constant")
     return(pmtx.out)
     }
 
-#########################
-
-#--------------------------------------
-#
-# FUNCTIONS FOR RAINFALL SPATIAL RECONSTRUCTION 
-# by Martin Fencl (2014/01/10)
-# martin.fencl@cvut.cz
-#
-# Last update: 2017/08/14
-#
 #--------------------------------------
 
 
-#--------------------------------------
+
+## -----------------------------------
+## CML RAINFALL SPATIAL RECONSTRUCTION 
+## -----------------------------------
+
 
 cml.to.points <- function(c.tab, Lmax){
     
@@ -1108,7 +953,6 @@ K.distance.mtx <- function(K){
 }
 
 #--------------------------------------
-
 
 distribute.cmlR.1D <- function(R, K, K.dist, q.var, z=5, n.iter = 10, rad=3000,
                                tune = F)
@@ -1311,7 +1155,6 @@ select.best.link <- function(cell.id, e.link, var1, var2){
 
 #--------------------------------------
 
-
 R.along.mwl.cell <- function(cell, dis0, L2, w.rain=1/5){  
     #------
     # reconstructs the rainfall distribution along particular CMLs by
@@ -1386,8 +1229,7 @@ R.along.mwl.cell <- function(cell, dis0, L2, w.rain=1/5){
 
 #--------------------------------------
 
-
-Rcell2reg.grid <- function(cell, dis0, rad1 = 3, rad2 = 5){
+Rcell2reg.grid <- function (cell, dis0, rad1 = 3, rad2 = 5){
     
     #------
     # extrapolate rain rates along CMLs to the regular 2D grid
@@ -1426,7 +1268,6 @@ Rcell2reg.grid <- function(cell, dis0, rad1 = 3, rad2 = 5){
 
 #--------------------------------------
 
-
 get_cml_accuracy <- function(Fr, Pol, length, std = .75) {
     # The accuracy is used as weight in the reconstruction algorithm.
     # Signal quantization + wet antenna effect is assumed to cause normally 
@@ -1442,34 +1283,173 @@ get_cml_accuracy <- function(Fr, Pol, length, std = .75) {
     return(var1)
 }
 
+## ================
+## Analyze results:
+## ================
 
-get_palette <- function() {
-    
-    # function returns tim.colors() palette from fields package
-    
-    return(
-    c(
-    "#00008F", "#00009F", "#0000AF", "#0000BF", "#0000CF", "#0000DF", 
-    "#0000EF", "#0000FF", "#0010FF", "#0020FF", "#0030FF", "#0040FF", 
-    "#0050FF", "#0060FF", "#0070FF", "#0080FF", "#008FFF", "#009FFF", 
-    "#00AFFF", "#00BFFF", "#00CFFF", "#00DFFF", "#00EFFF", "#00FFFF", 
-    "#10FFEF", "#20FFDF", "#30FFCF", "#40FFBF", "#50FFAF", "#60FF9F", 
-    "#70FF8F", "#80FF80", "#8FFF70", "#9FFF60", "#AFFF50", "#BFFF40", 
-    "#CFFF30", "#DFFF20", "#EFFF10", "#FFFF00", "#FFEF00", "#FFDF00", 
-    "#FFCF00", "#FFBF00", "#FFAF00", "#FF9F00", "#FF8F00", "#FF8000", 
-    "#FF7000", "#FF6000", "#FF5000", "#FF4000", "#FF3000", "#FF2000", 
-    "#FF1000", "#FF0000", "#EF0000", "#DF0000", "#CF0000", "#BF0000", 
-    "#AF0000", "#9F0000", "#8F0000", "#800000"
-    )
-    )
+#------------------------------
 
+# ---- Performance metrics ----
+
+#------------------------------
+
+rmse <- function(x,y){sqrt(mean((x - y)^2, na.rm=T))}
+
+#--------------------------------------
+
+rel_bias <- function(x,y){
+  ## relative bias (rel. error of total cumulative quantities)
+  ## Arguments: x - reference
+  ##         y - evaluated variable
+  ## Returns: relaitve bias
+  
+  dif <- y - x
+  nas <- which(is.na(dif)==T)
+  if(length(nas) > 0){
+    err <- sum((y-x)[-nas])/sum(x[-nas])    
+  }else{
+    err <- sum(y-x)/sum(x)    
+  }
+  return(err)
+}
+
+#--------------------------------------
+
+nse <- function(x,y){
+  ## Nash-Sutcliffe Efficiency index
+  ## Arguments: x - reference
+  ##         y - evaluated variable
+  ## Returns: Nash-Sutcliffe index
+  
+  dif <- y - x
+  nas <- which(is.na(dif)==T)
+  if(length(nas) > 0){
+    nse <- 1 - sum(((x-y)[-nas])^2)/sum((x[-nas] - mean(x[-nas]))^2)    
+  }else{
+    nse <- 1 - sum((x-y)^2)/sum((x - mean(x))^2)    
+  }
+  return(nse)
 }
 
 
 
-## -----------------------
+#-----------------------------
+
+# ---- Plotting functions ----
+
+#-----------------------------
+
+plot2 <- function(..., h = seq(0, 50, 5), v = seq(0, 50, 5), g.col = '#00000044'){
+  # plot graph with grid lines
+  
+  plot(...)
+  
+  abline(h = h, lty=3, col = g.col) #grid
+  abline(v = v, lty=3, col = g.col) #grid
+}
+
+#--------------------------------------
+
+polyline <- function(x,y, ..., from='zero', border=NA){
+  ## Function to plot time series as solid polygon
+  ## Arguments: x, ... - Arguments of the plot function
+  ##         from - indicates the baseline of the  polygon, 'min' sets the
+  ##                baseline to the minimal value of y, 'zero ' sets it to 0 
+  
+  if(from == 'zero'){
+    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
+                      c(0, y[1:length(y)], 0, 0))
+  }else if(from == 'zero'){
+    y.min = min(y, na.rm=T)
+    poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
+                      c(y.min, y[1:length(y)], y.min, y.min))
+  }else{stop('from has to be \'zero\' or \'min\'')}
+  
+  polygon(poly, ..., border=border)
+}
+
+#--------------------------------------
+
+plot_scatter = function(x,y, y.intersp = 2, cex.leg = 1.2, pos = 'topleft', ...){
+  ## Function to plot nice scatter plot with legend 
+  
+  plot2(x,y, ...)
+  co = round(cor(x,y, use= 'na.or.complete'), 2)
+  l = lm(y ~ x)
+  abline(l, col=2)
+  l = round(l[[1]], 2)
+  legend(pos, c(paste('r =', co), paste('interc. =', l[1]), paste('slope =', l[2])),
+         y.intersp = y.intersp, cex = cex.leg)
+}
+
+#--------------------------------------
+
+plot_3_scatters = function(z,...){
+  ## Function to plot three scatter plots in row showing correlation between
+  ## three variables
+  ## Arguments: z - data.frame with three variables
+  
+  layout(matrix(1:3, 1,3))
+  par(mar=c(4,4,.5,.5))
+  
+  plot_scatter(z[ ,1], z[ ,2], xlab = colnames(z)[1], ylab = colnames(z)[2], ...)
+  plot_scatter(z[ ,1], z[ ,3], xlab = colnames(z)[1], ylab = colnames(z)[3],...)
+  plot_scatter(z[ ,2], z[ ,3], xlab = colnames(z)[2], ylab = colnames(z)[3],...)
+}
+
+#--------------------------------------
+
+tim.colors.palette <- function() {
+  
+  # function returns tim.colors() palette from fields package
+  
+  return(
+    c(
+      "#00008F", "#00009F", "#0000AF", "#0000BF", "#0000CF", "#0000DF", 
+      "#0000EF", "#0000FF", "#0010FF", "#0020FF", "#0030FF", "#0040FF", 
+      "#0050FF", "#0060FF", "#0070FF", "#0080FF", "#008FFF", "#009FFF", 
+      "#00AFFF", "#00BFFF", "#00CFFF", "#00DFFF", "#00EFFF", "#00FFFF", 
+      "#10FFEF", "#20FFDF", "#30FFCF", "#40FFBF", "#50FFAF", "#60FF9F", 
+      "#70FF8F", "#80FF80", "#8FFF70", "#9FFF60", "#AFFF50", "#BFFF40", 
+      "#CFFF30", "#DFFF20", "#EFFF10", "#FFFF00", "#FFEF00", "#FFDF00", 
+      "#FFCF00", "#FFBF00", "#FFAF00", "#FF9F00", "#FF8F00", "#FF8000", 
+      "#FF7000", "#FF6000", "#FF5000", "#FF4000", "#FF3000", "#FF2000", 
+      "#FF1000", "#FF0000", "#EF0000", "#DF0000", "#CF0000", "#BF0000", 
+      "#AF0000", "#9F0000", "#8F0000", "#800000"
+    )
+  )
+  
+}
+
+#--------------------------------------
+
+zero_before <- function(x, dig){
+  ## function to convert numbers to strings and add zeros before them 
+  ##
+  ## Arguments: x   - integer
+  ##         dig - number of digits
+  ##
+  ## Returns: number as character with zeros before
+  
+  if(round(x, 0) != x){stop("input has to be an integer")}
+  if(round(dig, 0) != dig){stop("number of digits has to be an integer")}
+  
+  n.zer <- dig - floor(log(x, 10)) - 1
+  if(n.zer < 0){
+    n.zer <- 0
+    warning("Input is longer than defined number of digits!")
+  }
+  
+  return(paste(paste(rep("0", n.zer), sep="", collapse=""), x, sep=""))
+}
+
+#--------------------------------------
+
+
+
+## ========
 ## Helpers:
-## -----------------------
+## ========
 
 insert_missing_records <- function(zoo_ser, step){
   ## inserts time steps and assign to them NA value to make the input time series regular
@@ -1492,8 +1472,7 @@ insert_missing_records <- function(zoo_ser, step){
   return(zoo2_ser)
 }
 
-
-
+#--------------------------------------
 
 reg_series <- function(dat, step){
   ## function to insert time steps to make time series regular
@@ -1517,6 +1496,7 @@ reg_series <- function(dat, step){
   return(dat2)
 }
 
+#--------------------------------------
 
 fun_refra <- function(fr){
     
@@ -2805,7 +2785,3 @@ fun_refra <- function(fr){
     return(refr.out)
     
 }
-
-##################
-
-
