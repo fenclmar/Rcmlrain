@@ -6,7 +6,7 @@ Rcmlrain works with R language 3.0.0. and newer.  The repo CANNOT be directly co
 
 ```
 source(url('https://raw.githubusercontent.com/fenclmar/Rcmlrain/master/Rcmlrain/fun_CML.r'))
-if (!('zoo' %in% installed.packages())){install.packages('zoo')} # install zoo if not installed yet
+if (!('zoo' %in% installed.packages())) {install.packages('zoo')}    # install zoo if not installed yet
 library(zoo)
 ```
 
