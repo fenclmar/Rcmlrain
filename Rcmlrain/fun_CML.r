@@ -240,7 +240,7 @@ baseline_fenicia <- function(tl, m = 3e-3){
 
 #--------------------------------------
 
-baseline_schleiss <- function (tl, wet, w = 6 * 3600, method = "linear") {
+baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     
     ## Baseline estimation algorithm of Schleiss:
     ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -261,7 +261,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, method = "linear") {
     
   ## get time as numeric vector
     tim <- as.numeric(index(tl))
-  
+    tl <- coredata(tl)
     ## Local variables:
     Ntim <- length(tim)
     Ntl <- length(tl)
@@ -310,9 +310,13 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, method = "linear") {
         x <- tim[id.dry.antenna] / 3600
         y <- tl[id.dry.antenna]
         xout <- tim[id.wet.antenna] / 3600
-        tabB[id.wet.antenna] <- approx(x = x, y = y,xout = xout, method = method)$y
+        tabB[id.wet.antenna] <- approx(x = x, y = y,xout = xout,
+                                       method = approxMethod)$y
     }
-    return(tabB)    
+    
+    B <- zoo(tabB, tim)
+    
+    return(B)    
 }
 
 #--------------------------------------
