@@ -158,25 +158,28 @@ drywet_schleiss <- function (tl,  q = .94, width = 15, align = 'left', returnSD 
 
 get_baseline <- function(tl, method, ...) {
   # calculate baseline from total loss using different methods
+  
   if (!(method %in% c('schleiss', 'fenicia', 'moving_quantile', 'median'))) {
     stop('method has to be schleiss, kharadly, or fenicia')
   }
   
   if (method == 'schleiss') {
-    B <- baseline_schleiss(tl, ...)
+    B <- baseline_schleiss(tl, wet = NULL, w = 6 * 3600, approxMethod = "linear")
   }
   
   if (method == 'moving_quantile') {
-    B <- baseline__Qsmoothing (tl, ...)
+    B <- baseline_Qsmoothing (tl, q = .5, win = 7 * 24, aggFun = 'mean')
   }
   
   if (method == 'fenicia') {
-    B <- baseline_fenicia(tl, ...)
+    B <- baseline_fenicia(tl, m = 3e-3)
   }
   
   if (method == 'median') {
-    B <- baseline_median(tl, ...)
+    B <- baseline_median(tl)
   }
+  
+  return(B)
 
 }
 
@@ -184,10 +187,10 @@ get_baseline <- function(tl, method, ...) {
 #   stop('method has to be schleiss, kharadly, or fenicia')
 # }
 
-baseline_median <- function (tl, ...) {
+baseline_median <- function (tl) {
   # Calculate constant baseline using median
   B <- tl
-  B[] <- rep(median(tl, ...), length(tl))
+  B[] <- rep(median(tl, na.rm = T), length(tl))
   return(B)
 }
 
@@ -253,7 +256,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     ## Output:
     ## tabB = vector with baseline attenuations (in dB) corresponding to tim
     
-  if (missing(wet)) {
+  if (is.null(wet)) {
     warning('dry/wet classification state vector is missing and will be calculated using drywet_schleiss function with default parameters')  
     wet <- drywet_schleiss(tl)     
   }
@@ -322,7 +325,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
 
 #--------------------------------------
 
-baseline_Qsmoothing <- function (tl, fun = 'mean', q = .5, win = 7 * 24, ...) {
+baseline_Qsmoothing <- function (tl, q = .5, win = 7 * 24, aggFun = 'mean') {
   #' Estimate basilne from sub-hurly total losses using moving quantile window.
   
   ## window range (in each step). 
@@ -338,7 +341,7 @@ baseline_Qsmoothing <- function (tl, fun = 'mean', q = .5, win = 7 * 24, ...) {
   #' events to ensure sufficienlty high ratio of dry weather records is within
   
   
-  tl_hourly <- zoo_aggreg_by(tl, 60, align = 'right', fun = fun, na.rm = T, ...)
+  tl_hourly <- zoo_aggreg_by(tl, 60, align = 'right', fun = aggFun, na.rm = T)
   b_hourly <- rollapply(tl_hourly, win, quantile, probs = q, na.rm = T,
                    align = 'center', by = 1, partial = T)
   b_hourly2 <- rollapply(b_hourly, win, mean, na.rm = T, align = 'center',
