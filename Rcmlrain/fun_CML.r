@@ -111,7 +111,7 @@ zoo_aggreg_by <- function(ts_zoo, step, fun, align = 'center',
 
 #---------------------------------
 
-drywet_schleiss <- function (tl,  q = .94, width, align = 'left', returnSD = F,
+drywet_schleiss <- function (tl,  q = .94, width = 15, align = 'left', returnSD = F,
                              partial = T, na.rm = T, tsh = NULL) {
   
   #' Dry/wet weather classification based on standard deviation moving window
@@ -156,7 +156,43 @@ drywet_schleiss <- function (tl,  q = .94, width, align = 'left', returnSD = F,
 
 #----------------------------------
 
-baseline_fenicia <- function(tl, m){
+get_baseline <- function(tl, method, ...) {
+  # calculate baseline from total loss using different methods
+  if (!(method %in% c('schleiss', 'fenicia', 'moving_quantile', 'median'))) {
+    stop('method has to be schleiss, kharadly, or fenicia')
+  }
+  
+  if (method == 'schleiss') {
+    B <- baseline_schleiss(tl, ...)
+  }
+  
+  if (method == 'moving_quantile') {
+    B <- baseline__Qsmoothing (tl, ...)
+  }
+  
+  if (method == 'fenicia') {
+    B <- baseline_fenicia(tl, ...)
+  }
+  
+  if (method == 'median') {
+    B <- baseline_median(tl, ...)
+  }
+
+}
+
+# if (!(method %in% c('schleiss', 'kharadly', 'fenicia', 'median'))) {
+#   stop('method has to be schleiss, kharadly, or fenicia')
+# }
+
+baseline_median <- function (tl, ...) {
+  # Calculate constant baseline using median
+  B <- tl
+  B[] <- rep(median(tl, ...), length(tl))
+  return(B)
+}
+
+
+baseline_fenicia <- function(tl, m = 3e-3){
     
     ## Baseline model for CML rainfall estimation
     ## for details see eq. 3 and 17 in Fenicia et al 2012, Microwave links
@@ -217,7 +253,13 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, method = "linear") {
     ## Output:
     ## tabB = vector with baseline attenuations (in dB) corresponding to tim
     
-    ## get time as numeric vector
+  if (missing(wet)) {
+    warning('dry/wet classification state vector is missing and will be calculated using drywet_schleiss function with default parameters')  
+    wet <- drywet_schleiss(tl)     
+  }
+    
+    
+  ## get time as numeric vector
     tim <- as.numeric(index(tl))
   
     ## Local variables:
