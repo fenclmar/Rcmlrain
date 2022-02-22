@@ -260,6 +260,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     
     
   ## get time as numeric vector
+    tl0 <- tl
     tim <- as.numeric(index(tl))
     tl <- coredata(tl)
     ## Local variables:
@@ -314,7 +315,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
                                        method = approxMethod)$y
     }
     
-    B <- zoo(tabB, tim)
+    B <- zoo(tabB, index(tl0))
     
     return(B)    
 }
