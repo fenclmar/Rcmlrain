@@ -111,11 +111,11 @@ zoo_aggreg_by <- function(ts_zoo, step, fun, align = 'center',
 
 #---------------------------------
 
-drywet_schleiss <- function (tl,  q = .94, width, align = 'left', partial = T,
-                             na.rm = T, tsh = NULL) {
+drywet_schleiss <- function (tl,  q = .94, width, align = 'left', returnSD = F,
+                             partial = T, na.rm = T, tsh = NULL) {
   
   #' Dry/wet weather classification based on standard deviation moving window
-  #' according to Schleiss et al. 2009. Window width is 
+  #' according to Schleiss et al. 2009.
   #' 
   #'@param tl time series with total losses (dB) or specific losses (dB/km)
   #'@param q quantile defining threshold for sds correpsonding to dry and wet weather, i.e.
@@ -139,7 +139,13 @@ drywet_schleiss <- function (tl,  q = .94, width, align = 'left', partial = T,
   
   wet <- sd_tl > tsh
   
-  out <- list('sd' = sd_tl, 'wet' = wet)
+  if (returnSD == T) {
+    out <- list('sd' = sd_tl, 'wet' = wet)
+  } else {
+    out <- wet
+  }
+  
+  
   return (out)
   
 }
@@ -198,20 +204,22 @@ baseline_fenicia <- function(tl, m){
 
 #--------------------------------------
 
-baseline_schleiss <- function (tim, tl, wet, w = 6 * 3600, method = "linear") {
+baseline_schleiss <- function (tl, wet, w = 6 * 3600, method = "linear") {
     
     ## Baseline estimation algorithm of Schleiss:
     ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
     
     ## Arguments:
-    ## tim = vector with sorted measurement times (in seconds)
-    ## tl = vector with CML attenuations measurements (in dB) corresponding to tim
+    ## tl = time series with CML attenuations measurements (in dB) corresponding to tim
     ## wet = state vector (0=dry ; 1=rainy) corresponding to tim
     ## w    = safety window (in seconds) before the antennas are declared dry
     
     ## Output:
     ## tabB = vector with baseline attenuations (in dB) corresponding to tim
     
+    ## get time as numeric vector
+    tim <- as.numeric(index(tl))
+  
     ## Local variables:
     Ntim <- length(tim)
     Ntl <- length(tl)
@@ -430,7 +438,7 @@ WAA_leijense <-function(R, fr, thickpars, refra){
 
 #--------------------------------------
 
-WAA_schleiss <- function (tim, tl, wet, tauW, Wmax, w0 = 0) {
+WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
   
   ## Dynamic wet-antenna attenuation model
   ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -438,14 +446,16 @@ WAA_schleiss <- function (tim, tl, wet, tauW, Wmax, w0 = 0) {
   ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
   
   ## Arguments:
-  ## tim = vector with sorted measurement times (in seconds)
-  ## tl = vector with CML attenuations measurements (in dB) corresponding to tim, after removal of the baseline
+  ## tl = time series with CML attenuations measurements (in dB) corresponding to tim, after removal of the baseline
   ## wet = state vector (0=dry ; 1=rainy) corresponding to tim
   ## tauW = average antenna wetting time (in minutes)
   ## Wmax = maximum wet-antenna attenuation (in dB)
   ## w0   = initial wet-antenna attenuation (in dB)
   
   ## Output:
+  ## get time as numeric vector
+  tim <- as.numeric(index(tl))
+  
   ## Aw = vector with wet-antenna attenuations (in dB) corresponding to tim
   print(paste("execution started at", Sys.time()))
   ## Local variables:
