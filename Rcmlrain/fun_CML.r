@@ -622,7 +622,7 @@ get_specificAtt <- function (tl, B, Aw, L, wet = NULL) {
   
   if (is.null(wet)) {wet <- T}
   
-  k <- (tl - B - Aw) * wet
+  k <- (tl - B - Aw) * wet / L
   k[k < 0] <- 0
   
   return(k)
