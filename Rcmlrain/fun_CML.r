@@ -156,15 +156,15 @@ drywet_schleiss <- function (tl,  q = .94, width = 15, align = 'left', returnSD 
 
 #----------------------------------
 
-get_baseline <- function(tl, method, ...) {
+get_baseline <- function(tl, method = 'moving_quantile', ...) {
   # calculate baseline from total loss using different methods
   
   if (!(method %in% c('schleiss', 'fenicia', 'moving_quantile', 'median'))) {
-    stop('method has to be schleiss, kharadly, or fenicia')
+    stop(paste('wrong method value supplied!'))
   }
   
   if (method == 'schleiss') {
-    B <- baseline_schleiss(tl, wet = NULL, w = 6 * 3600, approxMethod = "linear")
+    B <- baseline_schleiss(tl, ...)
   }
   
   if (method == 'moving_quantile') {
@@ -183,17 +183,17 @@ get_baseline <- function(tl, method, ...) {
 
 }
 
-# if (!(method %in% c('schleiss', 'kharadly', 'fenicia', 'median'))) {
-#   stop('method has to be schleiss, kharadly, or fenicia')
-# }
+#--------------------------------------
 
-baseline_median <- function (tl) {
+
+baseline_median <- function (tl, ...) {
   # Calculate constant baseline using median
   B <- tl
   B[] <- rep(median(tl, na.rm = T), length(tl))
   return(B)
 }
 
+#--------------------------------------
 
 baseline_fenicia <- function(tl, m = 3e-3){
     
@@ -243,7 +243,8 @@ baseline_fenicia <- function(tl, m = 3e-3){
 
 #--------------------------------------
 
-baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
+baseline_schleiss <- function (tl, wet = NULL, win = 6 * 3600,
+                               approxMethod = "linear", ...) {
     
     ## Baseline estimation algorithm of Schleiss:
     ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -271,7 +272,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     Ntl <- length(tl)
     Nwet <- length(wet)
     notNA <- which(!is.na(tl))
-    tabB  <- rep(NA,Ntim)
+    tabB  <- rep(NA, Ntim)
     
     ## Basic checks on input parameters:
     if (Ntim == 0) {stop("tim is empty")}
@@ -279,12 +280,12 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     if (Ntim != Nwet) {stop("tim and wet must have the same number of elements")}
     if (any(is.na(tim))) {stop("NA values are not allowed in tim")}
     if (any(tl < 0,na.rm = TRUE)) {warning("there were negative attenuation values in tl")}
-    if (is.na(w)) {stop("NA value not allowed in w")}
-    if (w < 0) {stop("negative values are not allowed for w")}
+    if (is.na(win)) {stop("NA value not allowed in window size")}
+    if (win < 0) {stop("negative values are not allowed for window size")}
     
     ## define dry and wet periods
-    id.dry <- intersect(which(wet == 0),notNA)
-    id.wet <- intersect(which(wet == 1),notNA)
+    id.dry <- intersect(which(wet == 0), notNA)
+    id.wet <- intersect(which(wet == 1), notNA)
     Ndry   <- length(id.dry)
     Nwet   <- length(id.wet)
     #print("OK 1")
@@ -302,7 +303,7 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
     
     ## Estimate baseline attenuation during periods with wet antennas
     ## The baseline is obtained by linearly interpolating the attenuation values during periods with dry antennas
-    id.dry.antenna <- which(time2prev.wet>w)
+    id.dry.antenna <- which(time2prev.wet > win)
     #print("OK 3")
     if (length(id.dry.antenna) == 0) {stop("could not find any period with dry antenna")}
     #print("OK 4")
@@ -325,7 +326,8 @@ baseline_schleiss <- function (tl, wet, w = 6 * 3600, approxMethod = "linear") {
 
 #--------------------------------------
 
-baseline_Qsmoothing <- function (tl, q = .5, win = 7 * 24, aggFun = 'mean') {
+baseline_Qsmoothing <- function (tl, q = .5, win = 7 * 24,
+                                 aggFun = 'mean', ...) {
   #' Estimate basilne from sub-hurly total losses using moving quantile window.
   
   ## window range (in each step). 
@@ -361,10 +363,53 @@ baseline_Qsmoothing <- function (tl, q = .5, win = 7 * 24, aggFun = 'mean') {
 
 #--------------------------------------
 
-WAA_kharadly_1 <- function(tl, p){
+
+get_WAA <- function (A, method = 'constant', ...) {
+  # wrapper FUnction returning wet antenna attenuation
+  
+  if (!(method %in% c('kharadly_1', 'kharadly_2', 'leijense',
+                      'schleiss', 'constant'))) {
+    stop(paste('wrong method value supplied!'))
+  }
+  
+  if (method == 'schleiss') {
+    WAA <- WAA_schleiss(A, ...)
+  }
+  
+  if (method == 'leijense') {
+    WAA <- WAA_leijense(A, ...)
+  }
+  
+  if (method == 'kharadly_1') {
+    WAA <- WAA_kharadly_1(A, ...)
+  }
+  
+  if (method == 'kharadly_2') {
+    WAA <- WAA_kharadly_2(A, ...)
+  }
+  
+  if (method == 'constant') {
+    WAA <- WAA_constant(A, ...)
+  }
+  
+  return(WAA)
+}
+
+
+#--------------------------------------
+
+WAA_constant <- function(A, const = 1.5, ...) {
+  # Get constant WAA
+  return(zoo(const, index(A)))
+}
+
+
+#--------------------------------------
+
+WAA_kharadly_1 <- function(A, p = c(6, .125), ...){
   ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
-  ##       tl   - attenuation of CML for which WAA is estimated
+  ##       A   - attenuation of CML for which WAA is estimated
   ##       p    - vector with model parameters c(C, d)
   ## Returns: Aw - wet antenna attenuation of one antenna
   
@@ -372,7 +417,7 @@ WAA_kharadly_1 <- function(tl, p){
   d <- p[2] #empirical parameter
   
   #filter out negative values
-  tl[which(tl < 0)] <- 0
+  A[which(A < 0)] <- 0
   
   Aw <- Cc*(1 - exp(-d * tl))
   
@@ -383,11 +428,11 @@ WAA_kharadly_1 <- function(tl, p){
 
 #--------------------------------------
 
-WAA_kharadly_2 <- function(tl, tl2, p){
+WAA_kharadly_2 <- function(A, A2, p, ...){
   ## Dual-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
-  ##       tl   - attenuation of CML for which WAA is estimated
-  ##       tl2  - attenuation of CML of same (similar) path and
+  ##       A   - attenuation of CML for which WAA is estimated
+  ##       A2  - attenuation of CML of same (similar) path and
   ##                    different frequency
   ##       p    - vector with model parameters c(Sp, gamma), where Sp
   ##                    is ratio of path attenuations (based on ITU) and gamma
@@ -398,16 +443,16 @@ WAA_kharadly_2 <- function(tl, tl2, p){
   gamma <- p[2] #empirical parameter
   
   #filter out negative values
-  tl[which(tl < 0)] <- 0
+  A[which(A < 0)] <- 0
   
-  Aw <- (tl2 - Sp * tl) / (gamma - Sp)
+  Aw <- (A2 - Sp * A) / (gamma - Sp)
   
   return(Aw)
 }
 
 #--------------------------------------
 
-WAA_leijense <-function(R, fr, thickpars, refra){
+WAA_leijense <-function(R, fr, thickpars, refra, ...){
   
   ## Calculates wet antena attenuation according to Leijnse 2007
   ## Last update: 2015/07/14
@@ -416,7 +461,7 @@ WAA_leijense <-function(R, fr, thickpars, refra){
   ##      R           - vector with rain rates [mm/h]
   ##      fr          - NWL frequency [GHz]
   ##      thickpars   - vector with gamma and delta parameter to calculate
-  ##                     thickness of a water film form rain rate
+  ##                     thickness of a water film from rain rate
   ##          refra   - refractive index of water, vector of two elements 
   ##                      with real and imaginary part of a complex number
   ## Returns:         - Wet antenna attenuation [dB]
@@ -488,7 +533,7 @@ WAA_leijense <-function(R, fr, thickpars, refra){
 
 #--------------------------------------
 
-WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
+WAA_schleiss <- function (A, wet = NULL, tauW = 15, Wmax = 2.3, w0 = 0, ...) {
   
   ## Dynamic wet-antenna attenuation model
   ## Coded by Marc Schleiss, EPFL-LTE, 14th May 2013
@@ -496,7 +541,7 @@ WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
   ## by Schleiss, M., J. Rieckermann and A. Berne, IEEE Geosci. Remote Sens. Lett., in press.
   
   ## Arguments:
-  ## tl = time series with CML attenuations measurements (in dB) corresponding to tim, after removal of the baseline
+  ## A = time series with CML attenuations measurements (in dB) corresponding to tim, after removal of the baseline
   ## wet = state vector (0=dry ; 1=rainy) corresponding to tim
   ## tauW = average antenna wetting time (in minutes)
   ## Wmax = maximum wet-antenna attenuation (in dB)
@@ -504,27 +549,32 @@ WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
   
   ## Output:
   ## get time as numeric vector
-  tim <- as.numeric(index(tl))
+  if (is.null(wet)) {
+    warning('dry/wet classification state vector is missing and will be calculated using drywet_schleiss function with default parameters')  
+    wet <- drywet_schleiss(A)     
+  }
+  
+  tim <- as.numeric(index(A))
   
   ## Aw = vector with wet-antenna attenuations (in dB) corresponding to tim
   print(paste("execution started at", Sys.time()))
   ## Local variables:
   Ntim <- length(tim)
-  Ntl <- length(tl)
+  NAtt <- length(A)
   Nwet <- length(wet)
-  notNA <- which(!is.na(tl))
+  notNA <- which(!is.na(A))
   NNA   <- length(notNA)
   
   ## Basic checks on input parameters:
   if (Ntim == 0) {stop("tim is empty")}
-  if (Ntim != Ntl) {stop("tim and tl must have the same number of elements")}
+  if (Ntim != NAtt) {stop("tim and A must have the same number of elements")}
   if (Ntim != Nwet) {stop("tim and wet must have the same number of elements")}
   if (any(is.na(tim))) {stop("NA values are not allowed in tim")}
   if (is.na(tauW)) {stop("NA value not allowed for tauW")}
   if (is.na(Wmax)) {stop("NA value not allowed for Wmax")}
   if (tauW <= 0) {stop("tauW must be strictly positive")}
   if (Wmax < 0) {stop("negative values are not allowed for Wmax")}
-  if (any(tl < 0,na.rm = TRUE)){warning("there were negative attenuation values in tl")}
+  if (any(A < 0,na.rm = TRUE)){warning("there were negative attenuation values in A")}
   
   ## Compute wet-antenna attenuation
   Aw <- rep(NA, Ntim)
@@ -538,18 +588,44 @@ WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
   for (itr in 2 : NNA) {
     j <- notNA[itr]
     if (wet[j] == 0){
-      Aw[j] <- max(min(tl[j], Wmax), 0)
+      Aw[j] <- max(min(A[j], Wmax), 0)
       next
     }
     i <- notNA[itr - 1]
     dt <- (tim[j] - tim[i]) / 60
     Aw[j] <- Aw[i] + (Wmax - Aw[i]) * 3 * dt / tauW
     if(Aw[j] > Wmax){Aw[j] <- Wmax}
-    if(Aw[j] > tl[j]){Aw[j] <- tl[j]}
+    if(Aw[j] > A[j]){Aw[j] <- A[j]}
     if(Aw[j] < 0){Aw[j] <- 0}
   }
   print(paste("execution endeded at", Sys.time()))
+  
+  Aw <- zoo(Aw, index(A))
   return(Aw)
+}
+
+
+#-----------------------------------
+
+# ---- specific attenuation  ----
+
+#-----------------------------------
+
+get_specificAtt <- function (tl, B, Aw, L, wet = NULL) {
+  # get specific raindrop path attenuation
+  # Arguments:
+  # tl - numeric vector of total losses (dB)
+  # B - numeric vector of baseline values (dB)
+  # Aw - wet antenna attenuation
+  # L - length of the CML (km)
+  # wet - state vector with dry/wet time steps (False) wet (True)
+  
+  if (is.null(wet)) {wet <- T}
+  
+  k <- (tl - B - Aw) * wet
+  k[k < 0] <- 0
+  
+  return(k)
 }
 
 
@@ -559,12 +635,12 @@ WAA_schleiss <- function (tl, wet, tauW, Wmax, w0 = 0) {
 
 #-----------------------------------
 
-get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
+get_ITU_pars <- function(freq, pol, conv = T, digits = 3){
     ## returns R-k power law parameters for given frequency and polarization. 
     ## Parameters are based on Rec. ITU-R P.838-3.
     ##
-    ## Arguments:   Freq  - Frequency in GHz 
-    ##           Pol   - polarization ("V" or "H")
+    ## Arguments:   freq  - Frequency in GHz 
+    ##           pol   - polarization ("V" or "H")
     ##           conv - indicating if to convert original ITU parameters to 
     ##                  (alpha & beta) parameters for rainfall estimation or keep
     ##                  original ITU values (a & b)
@@ -574,11 +650,11 @@ get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
     
     
     #check inputs  
-    if(length(Freq) != length(Pol)){stop("frequency vector does not have same length as polarization vector")}
-    if(length(Pol) != length(which(is.na(match(Pol, c("V", "H")))==F))){
+    if(length(freq) != length(pol)){stop("frequency vector does not have same length as polarization vector")}
+    if(length(pol) != length(which(is.na(match(pol, c("V", "H")))==F))){
         stop("Polarizaton has to be character vector with only V or H symbol for vert. resp. horizon. polarization")
     }
-    if(Freq < 1 || Freq > 1000){stop("Frequency is out of ITU rec. range")}
+    if(freq < 1 || freq > 1000){stop("Frequency is out of ITU rec. range")}
     
     #load ITU data (can be later extended to 1 GHz)
     Fr <- c(1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,120,150,200,300,400,500,600,700,800,900,1000)
@@ -588,18 +664,18 @@ get_ITU_pars <- function(Freq, Pol, conv = T, digits = 3){
     betaV  <- c(1.16,1.12,1.05,0.99,0.94,0.88,0.80,0.71,0.65,0.63,0.64,0.68,0.72,0.78,0.82,0.86,0.89,0.92,0.94,0.96,0.97,0.99,1,1.01,1.02,1.02,1.03,1.04,1.05,1.05,1.06,1.07,1.08,1.09,1.1,1.1,1.11,1.12,1.13,1.14,1.15,1.16,1.17,1.18,1.19,1.2,1.21,1.21,1.22,1.23,1.24,1.25,1.26,1.26,1.27,1.28,1.28,1.29,1.3,1.31,1.31,1.32,1.32,1.33,1.34,1.34,1.35,1.35,1.36,1.36,1.37,1.37,1.38,1.38,1.39,1.39,1.39,1.4,1.4,1.41,1.41,1.41,1.42,1.42,1.42,1.43,1.43,1.43,1.44,1.44,1.44,1.45,1.45,1.45,1.45,1.46,1.46,1.46,1.46,1.47,1.47,1.47,1.47,1.48,1.48,1.51,1.55,1.58,1.6,1.6,1.59,1.59,1.58,1.58,1.57,1.57)
     
     # interpolate parameters to match the link frequencies
-    cml.pars <- matrix(NA, nrow=length(Pol), ncol=2)
+    cml.pars <- matrix(NA, nrow=length(pol), ncol=2)
     colnames(cml.pars) <- c("alpha", "beta")
     
-    for(i in 1:length(Pol)){
-        if(Pol[i]=="H"){
-            cml.pars[i ,1] <- approx(Fr,  alphaH, Freq[i])$y    
-            cml.pars[i ,2] <- approx(Fr,  betaH, Freq[i])$y  
+    for(i in 1:length(pol)){
+        if(pol[i]=="H"){
+            cml.pars[i ,1] <- approx(Fr,  alphaH, freq[i])$y    
+            cml.pars[i ,2] <- approx(Fr,  betaH, freq[i])$y  
         }
         
-        if(Pol[i]=="V"){
-            cml.pars[i ,1] <- approx(Fr,  alphaV, Freq[i])$y    
-            cml.pars[i ,2] <- approx(Fr,  betaV, Freq[i])$y  
+        if(pol[i]=="V"){
+            cml.pars[i ,1] <- approx(Fr,  alphaV, freq[i])$y    
+            cml.pars[i ,2] <- approx(Fr,  betaV, freq[i])$y  
         }
     }
     
