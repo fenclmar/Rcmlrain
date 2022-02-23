@@ -1441,10 +1441,11 @@ summary_stats <- function (rRef, rEst) {
   # Rref - vector with reference rainfall (along link path)
   # Rref - vector reference rainfall (along link path)
   # Returns: vector with summary stats
-  # Details: (NA are values are omited)
+  # Details: (NA are values are omitted)
   metrics <- c('rmse' = rmse(rRef, rEst),
                'rel_error' = rel_bias(rRef, rEst),
                'R2' = cor(rRef, rEst, use = 'na.or.complete')^2)
+  1+1
   return(metrics)
 }
 
