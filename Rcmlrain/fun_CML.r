@@ -1433,6 +1433,23 @@ get_cml_accuracy <- function(Fr, Pol, length, std = .75) {
 
 #------------------------------
 
+#--------------------------------------
+
+summary_stats <- function (rRef, rEst) {
+  # Returns vector with summary statistics (RMSE, rel. error and R^2)
+  # Arguments:
+  # Rref - vector with reference rainfall (along link path)
+  # Rref - vector reference rainfall (along link path)
+  # Returns: vector with summary stats
+  # Details: (NA are values are omited)
+  metrics <- c('rmse' = rmse(rRef, rEst),
+               'rel_error' = rel_bias(rRef, rEst),
+               'R2' = cor(rRef, rEst, use = 'na.or.complete')^2)
+  return(metrics)
+}
+
+
+
 rmse <- function(x,y){sqrt(mean((x - y)^2, na.rm=T))}
 
 #--------------------------------------
