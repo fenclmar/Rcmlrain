@@ -419,7 +419,7 @@ WAA_kharadly_1 <- function(A, p = c(6, .125), ...){
   #filter out negative values
   A[which(A < 0)] <- 0
   
-  Aw <- Cc*(1 - exp(-d * tl))
+  Aw <- Cc*(1 - exp(-d * A))
   
   
   return(Aw)
