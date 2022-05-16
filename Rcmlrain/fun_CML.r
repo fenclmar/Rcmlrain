@@ -166,6 +166,8 @@ get_baseline <- function(tl, method = 'moving_quantile', ...) {
   if (length(which(is.na(tl))) == length(tl)) {
     warning('Baseline set to NA (tl contains NAs only)')
     B <- tl
+    return(B)
+    stop()
   }  
   
   if (method == 'schleiss') {
