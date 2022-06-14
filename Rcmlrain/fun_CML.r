@@ -375,7 +375,7 @@ get_WAA <- function (A, method = 'constant', ...) {
   # wrapper FUnction returning wet antenna attenuation
   
   if (!(method %in% c('kharadly_1', 'kharadly_2', 'leijense',
-                      'schleiss', 'constant'))) {
+                      'schleiss', 'constant', 'pastorek'))) {
     stop(paste('wrong method value supplied!'))
   }
   
@@ -399,6 +399,9 @@ get_WAA <- function (A, method = 'constant', ...) {
     WAA <- WAA_constant(A, ...)
   }
   
+  if (method == 'pastorek') {
+    WAA <- waa_pastorek(A, ...)
+  }  
   return(WAA)
 }
 
@@ -610,6 +613,21 @@ WAA_schleiss <- function (A, wet = NULL, tauW = 15, Wmax = 2.3, w0 = 0, ...) {
   Aw <- zoo(Aw, index(A))
   return(Aw)
 }
+
+#---------------------------
+
+waa_pastorek <- function (A, L, p = c(1.5, 0.5)) {
+  
+  Ai <- A
+  Ai[Ai < 0] <- 0
+  for (i in 1 : 2) {
+    Aw <- 2 * p[1] * (Ai/L)^p[2]
+    Ai <- Ai - Aw
+    Ai[Ai < 0] <- 0
+  }
+  return(Aw)
+}
+
 
 
 #-----------------------------------
