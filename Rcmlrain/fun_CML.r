@@ -614,7 +614,7 @@ WAA_schleiss <- function (A, wet = NULL, tauW = 15, Wmax = 2.3, w0 = 0, ...) {
   return(Aw)
 }
 
-#---------------------------
+#----------------------------
 
 waa_pastorek <- function (A, L, p = c(1.5, 0.5)) {
   
