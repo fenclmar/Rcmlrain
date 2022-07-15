@@ -389,7 +389,7 @@ get_WAA <- function (A, method = 'constant', ...) {
   }
   
   if (method == 'kharadly-pastorek') {
-    WAA <- kharadly-pastorek(A, ...)
+    WAA <- kharadly_pastorek(A, ...)
   }
   
   if (method == 'kharadly_1') {
@@ -421,7 +421,7 @@ WAA_constant <- function(A, p = 1.5, ...) {
 
 #--------------------------------------
 
-WAA_kharadly-pastorek <- function(A, L = 1, p = c(6, .125), ...){
+WAA_kharadly_pastorek <- function(A, L = 1, p = c(6, .125), ...){
   ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
   ##       A   - attenuation of CML for which WAA is estimated
