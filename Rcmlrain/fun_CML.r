@@ -375,7 +375,8 @@ get_WAA <- function (A, method = 'constant', ...) {
   # wrapper FUnction returning wet antenna attenuation
   
   if (!(method %in% c('kharadly_1', 'kharadly_2', 'leijense',
-                      'schleiss', 'constant', 'pastorek'))) {
+                      'schleiss', 'constant', 'pastorek',
+                      'kharadly-pastorek'))) {
     stop(paste('wrong method value supplied!'))
   }
   
@@ -385,6 +386,10 @@ get_WAA <- function (A, method = 'constant', ...) {
   
   if (method == 'leijense') {
     WAA <- WAA_leijense(A, ...)
+  }
+  
+  if (method == 'kharadly-pastorek') {
+    WAA <- kharadly-pastorek(A, ...)
   }
   
   if (method == 'kharadly_1') {
@@ -408,11 +413,33 @@ get_WAA <- function (A, method = 'constant', ...) {
 
 #--------------------------------------
 
-WAA_constant <- function(A, const = 1.5, ...) {
+WAA_constant <- function(A, p = 1.5, ...) {
   # Get constant WAA
-  return(zoo(const, index(A)))
+  return(zoo(p, index(A)))
 }
 
+
+#--------------------------------------
+
+WAA_kharadly-pastorek <- function(A, L = 1, p = c(6, .125), ...){
+  ## Single-frequency Wet antenna attenuation model (Kharadly 2001)
+  ## Ipnuts: 
+  ##       A   - attenuation of CML for which WAA is estimated
+  ##       p    - vector with model parameters c(C, d)
+  ## Returns: Aw - wet antenna attenuation of one antenna
+  
+  Cc <- p[1]   #maximal expected attenuation caused by WA effect
+  d <- p[2] #empirical parameter
+  
+  #filter out negative values
+  A[which(A < 0)] <- 0
+  
+  Aw <- Cc*(1 - exp(-d * A / L))
+  
+  
+  return(Aw)
+  
+}
 
 #--------------------------------------
 
@@ -437,7 +464,6 @@ WAA_kharadly_1 <- function(A, p = c(6, .125), ...){
 }
 
 #--------------------------------------
-
 WAA_kharadly_2 <- function(A, A2, p, ...){
   ## Dual-frequency Wet antenna attenuation model (Kharadly 2001)
   ## Ipnuts: 
@@ -616,7 +642,7 @@ WAA_schleiss <- function (A, wet = NULL, tauW = 15, Wmax = 2.3, w0 = 0, ...) {
 
 #----------------------------
 
-waa_pastorek <- function (A, L, p = c(1.5, 0.5)) {
+waa_pastorek <- function (A, L, p = c(1.5, 0.5), ...) {
   
   Ai <- A
   Ai[Ai < 0] <- 0
