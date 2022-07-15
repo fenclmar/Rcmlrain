@@ -389,7 +389,7 @@ get_WAA <- function (A, method = 'constant', ...) {
   }
   
   if (method == 'kharadly-pastorek') {
-    WAA <- kharadly_pastorek(A, ...)
+    WAA <- WAA_kharadly_pastorek(A, ...)
   }
   
   if (method == 'kharadly_1') {
