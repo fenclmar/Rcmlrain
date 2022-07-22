@@ -453,7 +453,7 @@ WAA_kharadly_1 <- function(A, p = c(6, .125), ...){
   Cc <- p[1]   #maximal expected attenuation caused by WA effect
   d <- p[2] #empirical parameter
   
-  #filter out negative values
+  # filter out negative values
   A[which(A < 0)] <- 0
   
   Aw <- Cc*(1 - exp(-d * A))
