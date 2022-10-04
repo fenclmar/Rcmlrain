@@ -1654,7 +1654,42 @@ zero_before <- function(x, dig){
 
 #--------------------------------------
 
+zero_before2 <- function(x, dig){
+  ## function to convert numbers to strings and add zeros to enable alphabetical order.
+  ##
+  ## Inputs: x   - integer
+  ##         dig - number of digits
+  ##
+  ## Outputs: vector as character with zeros before 'shorter' numerals
+  
+  #if(round(x, 0) != x){stop("input has to be an integer")}
+  if(round(dig, 0) != dig){stop("number of digits has to be an integer")}
+  
+  # treat zero and negative values
+  sZero <- which(x == 0)
+  sNeg <-  which(x < 0)
+  x[sZero] <- 1
+  x[sNeg] <- abs(x[sNeg])
+  
+  # use log10 to estimate number of digits
+  nDig <- floor(log(x, 10))
+  nDig[nDig < 0] <- 0
+  nDig <- nDig + 1
+  
+  xOut <- rep('', length(x))
+  for (i in 1 : dig) {
+    zeros <- paste0(rep('0', dig - i), collapse = '')
+    xOut[nDig == i] <- paste0(zeros, x[nDig == i])
+  }
+  xOut[nDig > dig] <- x
+  # treat zero and negative values
+  xOut[sZero] <- paste0(rep("0", dig), collapse="")
+  xOut[sNeg] <- paste0('-', xOut[sNeg])
+  
+  return(xOut)
+}
 
+#--------------------------------------
 
 ## ========
 ## Helpers:
