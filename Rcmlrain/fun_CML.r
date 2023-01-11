@@ -1568,7 +1568,7 @@ polyline <- function(x,y, ..., from='zero', border=NA){
   if(from == 'zero'){
     poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
                       c(0, y[1:length(y)], 0, 0))
-  }else if(from == 'zero'){
+  }else if(from == 'min'){
     y.min = min(y, na.rm=T)
     poly = data.frame(x[c(1 ,1:length(x), length(x), 1)],
                       c(y.min, y[1:length(y)], y.min, y.min))
