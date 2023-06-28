@@ -2,7 +2,7 @@
 Functions for processing commercial microwave link (CML) data written in R language and an example of spatial reconstruction with virtual CML data.
 
 ## Instalation
-Rcmlrain works with R language 3.0.0. and newer.  The repo CANNOT be directly compiled to R package, instead the file fun_CML.r needs to be sourced. Installing and loading zoo package (infrastructure for regular and irregular time series) is recomended for proper performance of several Rcmlrain functions.
+Rcmlrain works with R language 3.0.0. and newer.  The repo CANNOT be directly compiled to R package, instead the file fun_CML.r needs to be sourced. Installing and loading zoo package (for hanfling regular and irregular time series) is recomended for proper performance of several Rcmlrain functions.
 
 ```
 source(url('https://raw.githubusercontent.com/fenclmar/Rcmlrain/master/Rcmlrain/fun_CML.r'))
