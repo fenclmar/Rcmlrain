@@ -6,7 +6,6 @@
 # Description: Provides set of tools for processing cml data. Designed for 
 # ICUD CML workshop in Prague COngress Centre (10th September 2017)
 # License: MIT
-# Last upadate: 2022/02 (not exactly when and what)
 
 
 
