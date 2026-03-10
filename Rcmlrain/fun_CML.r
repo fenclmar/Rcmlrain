@@ -81,7 +81,15 @@ zoo_aggreg_by <- function(ts_zoo, step, fun, align = 'center',
     tim_agr <-  as.POSIXct(t_num, origin="1970-01-01 00:00:00 UTC") #time indexes for aggregtion
     
     ag_zoo <- aggregate(ts_zoo, list(tim_agr), fun, ...)
+  
+    # Restore column names lost by aggregate.zoo on single-column objects
+    if (!is.null(dim(ts_zoo)) && !is.null(colnames(ts_zoo))) {
+      if (is.null(colnames(ag_zoo))) {
+        colnames(ag_zoo) <- colnames(ts_zoo)
+      }
+    }
     
+  # Regularity check  
     if(is.regular(ag_zoo, strict = T) == F) {
         if(insert.missing == T){
             ag_zoo <- insert_missing_records(ag_zoo, step)
@@ -3028,3 +3036,4 @@ fun_refra <- function(fr){
     return(refr.out)
     
 }
+
